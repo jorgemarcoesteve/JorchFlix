@@ -1,0 +1,68 @@
+const { Router } = require('express');
+const jwt = require('jsonwebtoken');
+const axios = require('axios');
+const config = require('../config');
+const { getDatabase } = require('../config/database');
+const { autenticar } = require('../middleware/auth');
+
+const router = Router();
+
+router.post('/login', async (req, res) => {
+  const { usuario, contrasena } = req.body;
+
+  if (!usuario || !contrasena) {
+    return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+  }
+
+  try {
+    const respuesta = await axios.post(`${config.jellyfin.url}/Users/AuthenticateByName`, {
+      Username: usuario,
+      Pw: contrasena,
+    });
+
+    const jellyfinId = respuesta.data.User.Id;
+    const db = getDatabase();
+
+    let user = db.get('SELECT * FROM usuarios WHERE jellyfin_id = ?', [jellyfinId]);
+
+    if (!user) {
+      const { v4: uuidv4 } = require('uuid');
+      const id = uuidv4();
+      db.run('INSERT INTO usuarios (id, jellyfin_id, nombre_usuario) VALUES (?, ?, ?)', [id, jellyfinId, usuario]);
+      user = db.get('SELECT * FROM usuarios WHERE id = ?', [id]);
+    }
+
+    const token = jwt.sign(
+      { id: user.id, jellyfin_id: user.jellyfin_id },
+      config.jwtSecret,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      usuario: {
+        id: user.id,
+        nombre_usuario: user.nombre_usuario,
+        es_admin: Boolean(user.es_admin),
+        monedas: user.monedas,
+      },
+    });
+  } catch (err) {
+    if (err.response?.status === 401) {
+      return res.status(401).json({ error: 'Credenciales inválidas en Jellyfin' });
+    }
+    console.error('Error en login Jellyfin:', err.message);
+    res.status(500).json({ error: 'Error al conectar con el servidor de autenticación' });
+  }
+});
+
+router.get('/me', autenticar, (req, res) => {
+  res.json({
+    id: req.usuario.id,
+    nombre_usuario: req.usuario.nombre_usuario,
+    es_admin: Boolean(req.usuario.es_admin),
+    monedas: req.usuario.monedas,
+  });
+});
+
+module.exports = router;
