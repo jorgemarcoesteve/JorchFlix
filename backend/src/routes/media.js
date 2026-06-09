@@ -220,7 +220,7 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
     const { parentId, tipo, limit, startIndex } = req.query;
     const params = {
       Recursive: true,
-      Fields: 'PrimaryImageAspectRatio,Overview,PremiereDate,CommunityRating,ProviderIds,UserData,Path',
+      Fields: 'PrimaryImageAspectRatio,Overview,PremiereDate,CommunityRating,ProviderIds,UserData,Path,ImageTags',
       Limit: parseInt(limit) || 50,
       StartIndex: parseInt(startIndex) || 0,
     };
@@ -244,13 +244,24 @@ router.get('/imagen/:itemId', autenticar, async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
     const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
-    if (!baseUrl) return res.status(400).json({ error: 'JELLYFIN_URL no configurada' });
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
 
     const { itemId } = req.params;
     const { width } = req.query;
+
+    const headers = {
+      'X-MediaBrowser-Token': apiKey,
+      'Accept': 'image/webp,image/*,*/*',
+    };
+
+    if (req.usuario?.jellyfin_id) {
+      headers['X-Emby-Authorization'] =
+        `MediaBrowser Client="JorchFlix", Device="Server", DeviceId="JorchFlix", Version="1.0.0", UserId="${req.usuario.jellyfin_id}"`;
+    }
+
     const response = await axios.get(`${baseUrl}/Items/${itemId}/Images/Primary`, {
-      params: { width: width || 300, quality: 90, fillHeight: 450 },
-      headers: { 'X-MediaBrowser-Token': apiKey },
+      params: { width: parseInt(width) || 300, quality: 90, fillHeight: 450 },
+      headers,
       responseType: 'stream',
       timeout: 5000,
     });
