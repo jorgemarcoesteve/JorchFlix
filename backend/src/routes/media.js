@@ -217,15 +217,25 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
     const jellyfinId = req.usuario.jellyfin_id;
     if (!jellyfinId) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin. Vuelve a iniciar sesión.' });
 
-    const { parentId, tipo, limit, startIndex } = req.query;
+    const { parentId, tipo, limit, startIndex, hijosDe } = req.query;
     const params = {
-      Recursive: true,
       Fields: 'PrimaryImageAspectRatio,Overview,PremiereDate,CommunityRating,ProviderIds,UserData,Path,ImageTags',
       Limit: parseInt(limit) || 50,
       StartIndex: parseInt(startIndex) || 0,
     };
-    if (parentId) params.ParentId = parentId;
-    if (tipo) params.IncludeItemTypes = tipo;
+
+    if (hijosDe) {
+      params.ParentId = hijosDe;
+      params.Recursive = false;
+      params.ExcludeItemTypes = 'Season';
+    } else if (parentId) {
+      params.ParentId = parentId;
+      params.Recursive = true;
+      if (tipo) params.IncludeItemTypes = tipo;
+    } else {
+      params.Recursive = true;
+      params.ExcludeItemTypes = 'Season,Episode';
+    }
 
     const { data } = await axios.get(`${baseUrl}/Users/${jellyfinId}/Items`, {
       params,
@@ -240,7 +250,28 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
   }
 });
 
-router.get('/imagen/:itemId', autenticar, async (req, res) => {
+router.get('/reproducir-directo/:itemId', autenticar, async (req, res) => {
+  try {
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+
+    const { data } = await axios.get(`${baseUrl}/Items/${req.params.itemId}`, {
+      params: { Fields: 'Path' },
+      headers: { 'X-MediaBrowser-Token': apiKey },
+      timeout: 5000,
+    });
+
+    res.json({
+      url: `${baseUrl}/web/#/details?id=${data.Id}`,
+      nombre: data.Name,
+    });
+  } catch {
+    res.status(404).json({ error: 'Item no encontrado' });
+  }
+});
+
+router.get('/imagen/:itemId', async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
     const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);

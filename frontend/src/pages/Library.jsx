@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { FiFilm, FiMonitor, FiFolder, FiExternalLink, FiChevronLeft, FiChevronRight, FiEye, FiPlay } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { FiFilm, FiMonitor, FiFolder, FiExternalLink, FiChevronLeft, FiChevronRight, FiEye, FiArrowLeft, FiPlay } from 'react-icons/fi';
 import api from '../services/api';
 
 const iconosTipo = {
@@ -52,29 +52,78 @@ export default function Library() {
   const [pagina, setPagina] = useState(0);
   const porPagina = 50;
 
+  const [navegacion, setNavegacion] = useState([]);
+  const [parentActual, setParentActual] = useState(null);
+
   useEffect(() => {
     api.get('/media/biblioteca/carpetas')
       .then(({ data }) => {
         setCarpetas(data);
-        if (data.length > 0) setCarpetaActiva(data[0].Id);
+        if (data.length > 0 && !carpetaActiva) setCarpetaActiva(data[0].Id);
       })
       .catch(() => {})
       .finally(() => setCargandoCarpetas(false));
   }, []);
 
+  const cargarItems = async (parentId, esHijoDe) => {
+    setCargandoItems(true);
+    try {
+      const params = { limit: porPagina, startIndex: pagina * porPagina };
+      if (esHijoDe) {
+        params.hijosDe = parentId;
+      } else {
+        params.parentId = parentId;
+      }
+      const { data } = await api.get('/media/biblioteca/items', { params });
+      setItems(data.items || []);
+      setTotal(data.total || 0);
+    } catch {
+      setItems([]);
+      setTotal(0);
+    }
+    setCargandoItems(false);
+  };
+
   useEffect(() => {
     if (!carpetaActiva) return;
-    setCargandoItems(true);
-    api.get('/media/biblioteca/items', {
-      params: { parentId: carpetaActiva, limit: porPagina, startIndex: pagina * porPagina },
-    })
-      .then(({ data }) => {
-        setItems(data.items || []);
-        setTotal(data.total || 0);
-      })
-      .catch(() => { setItems([]); setTotal(0); })
-      .finally(() => setCargandoItems(false));
-  }, [carpetaActiva, pagina]);
+    if (navegacion.length > 0 && parentActual) {
+      cargarItems(parentActual, true);
+    } else {
+      cargarItems(carpetaActiva, false);
+    }
+  }, [carpetaActiva, pagina, parentActual, navegacion.length]);
+
+  const abrirItem = async (item) => {
+    if (item.Type === 'Series') {
+      setNavegacion([...navegacion, { id: item.Id, nombre: item.Name, tipo: 'Series' }]);
+      setParentActual(item.Id);
+      setPagina(0);
+    } else if (item.Type === 'Season') {
+      setNavegacion([...navegacion, { id: item.Id, nombre: `Temporada ${item.IndexNumber || ''}`, tipo: 'Season' }]);
+      setParentActual(item.Id);
+      setPagina(0);
+    } else if (item.Type === 'Episode') {
+      try {
+        const { data } = await api.get(`/media/reproducir-directo/${item.Id}`);
+        window.open(data.url, '_blank');
+      } catch {}
+    }
+  };
+
+  const retroceder = () => {
+    if (navegacion.length === 0) return;
+    const nueva = navegacion.slice(0, -1);
+    setNavegacion(nueva);
+    if (nueva.length === 0) {
+      setParentActual(null);
+      cargarItems(carpetaActiva, false);
+    } else {
+      const ant = nueva[nueva.length - 1];
+      setParentActual(ant.id);
+      cargarItems(ant.id, true);
+    }
+    setPagina(0);
+  };
 
   const totalPaginas = Math.ceil(total / porPagina);
   const carpetaActual = carpetas.find((c) => c.Id === carpetaActiva);
@@ -84,16 +133,29 @@ export default function Library() {
   return (
     <div className="max-w-7xl mx-auto px-4">
       <div className="flex items-center gap-3 mb-6">
+        {navegacion.length > 0 && (
+          <button onClick={retroceder} className="btn-secondary p-2.5"><FiArrowLeft size={18} /></button>
+        )}
         <div className={`p-2.5 rounded-xl bg-gradient-to-br ${color}`}>
           <Icono size={22} />
         </div>
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Biblioteca</h1>
-          <p className="text-sm text-jf-muted">Todo el contenido disponible en Jellyfin</p>
+          <div className="flex items-center gap-2 text-sm text-jf-muted">
+            <span>Biblioteca</span>
+            {navegacion.map((n, i) => (
+              <span key={i} className="flex items-center gap-1">
+                <span className="text-white/30">/</span>
+                <span className={i === navegacion.length - 1 ? 'text-white' : ''}>{n.nombre}</span>
+              </span>
+            ))}
+          </div>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+            {navegacion.length > 0 ? navegacion[navegacion.length - 1].nombre : (carpetaActual?.Name || 'Biblioteca')}
+          </h1>
         </div>
       </div>
 
-      {cargandoCarpetas ? (
+      {navegacion.length === 0 && (cargandoCarpetas ? (
         <div className="flex gap-3 mb-6">
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-10 w-28 rounded-xl" />)}
         </div>
@@ -102,7 +164,7 @@ export default function Library() {
           {carpetas.map((c) => {
             const Icon = iconosTipo[c.CollectionType] || iconosTipo.default;
             return (
-              <button key={c.Id} onClick={() => { setCarpetaActiva(c.Id); setPagina(0); }}
+              <button key={c.Id} onClick={() => { setCarpetaActiva(c.Id); setPagina(0); setNavegacion([]); }}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
                   carpetaActiva === c.Id
                     ? 'bg-jf-verde text-black shadow-glow'
@@ -114,7 +176,7 @@ export default function Library() {
             );
           })}
         </div>
-      )}
+      ))}
 
       {cargandoItems ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -127,7 +189,7 @@ export default function Library() {
         </div>
       ) : (
         <>
-          <p className="text-sm text-jf-muted mb-4">{total} items en {carpetaActual?.Name || 'biblioteca'}</p>
+          <p className="text-sm text-jf-muted mb-4">{total} items</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {items.map((item) => {
               const titulo = item.Name;
@@ -138,8 +200,12 @@ export default function Library() {
                 : null;
               const badge = BadgeProgreso({ item });
               const pct = item.UserData?.PlayedPercentage;
+              const esSerie = item.Type === 'Series';
+              const esSeason = item.Type === 'Season';
+              const esEpisode = item.Type === 'Episode';
+
               return (
-                <div key={item.Id} className="media-card group">
+                <div key={item.Id} className="media-card group cursor-pointer" onClick={() => abrirItem(item)}>
                   <div className="aspect-[2/3] bg-jf-hover rounded-2xl overflow-hidden relative">
                     {badge && (
                       <div className="absolute top-2 left-2 z-20">{badge}</div>
@@ -158,21 +224,29 @@ export default function Library() {
                         <Icono className="text-jf-muted/20" size={36} />
                       </div>
                     )}
+                    {esSeason && item.IndexNumber && (
+                      <div className="absolute top-2 right-2 z-20 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg">
+                        T{item.IndexNumber}
+                      </div>
+                    )}
+                    {esEpisode && item.IndexNumber && (
+                      <div className="absolute top-2 right-2 z-20 bg-black/70 text-jf-verde text-xs font-bold px-2 py-1 rounded-lg">
+                        E{item.IndexNumber}
+                      </div>
+                    )}
                     <BarraProgreso pct={pct} />
                     <div className="media-overlay" />
                     <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 group-hover:translate-y-0 transition-transform duration-300 z-10">
                       <p className="text-white font-semibold text-sm truncate drop-shadow-lg">{titulo}</p>
                       {year && <p className="text-white/60 text-xs mt-1">{year}</p>}
+                      {esEpisode && item.SeriesName && (
+                        <p className="text-white/40 text-[10px] truncate mt-0.5">{item.SeriesName}</p>
+                      )}
                     </div>
-                    {tmdbId ? (
+                    <div className="absolute inset-0 z-10" />
+                    {!esSerie && !esSeason && !esEpisode && tmdbId && (
                       <Link to={`/media/${item.Type === 'Series' || item.Type === 'Season' ? 'tv' : 'movie'}/${tmdbId}`}
-                        className="absolute inset-0 z-10" />
-                    ) : (
-                      <a href={`${api.defaults.baseURL?.replace('/api', '') || ''}/web/#/details?id=${item.Id}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="absolute bottom-2 right-2 z-20 p-1.5 bg-black/60 rounded-lg hover:bg-black/80 transition-colors">
-                        <FiExternalLink size={14} className="text-white/70" />
-                      </a>
+                        className="absolute inset-0 z-20" onClick={(e) => e.stopPropagation()} />
                     )}
                   </div>
                 </div>
