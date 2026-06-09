@@ -429,7 +429,11 @@ router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res
     jfUrl.searchParams.set('api_key', apiKey);
     jfUrl.searchParams.set('UserId', userId);
     jfUrl.searchParams.set('MediaSourceId', itemId);
+    jfUrl.searchParams.set('VideoCodec', 'h264');
+    jfUrl.searchParams.set('AudioCodec', 'aac');
     jfUrl.searchParams.set('RequireAvc', 'true');
+    jfUrl.searchParams.set('AllowVideoStreamCopy', 'false');
+    jfUrl.searchParams.set('AllowAudioStreamCopy', 'false');
     jfUrl.searchParams.set('DeviceId', 'JorchFlix');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
 
