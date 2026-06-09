@@ -225,6 +225,7 @@ export default function Player() {
     const params = new URLSearchParams();
     if (token) params.set('token', token);
     params.set('AudioStreamIndex', idx);
+    if (info?.mediaSourceId) params.set('MediaSourceId', info.mediaSourceId);
     const url = `/api/media/stream-audio/${id}?${params.toString()}`;
     v.src = url;
     v.load();
