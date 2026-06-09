@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
@@ -13,10 +13,6 @@ export default function Login() {
   const inputRef = useRef(null);
   const { login } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!cargando && inputRef.current) inputRef.current.focus();
-  }, [cargando]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
