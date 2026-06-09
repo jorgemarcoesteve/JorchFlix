@@ -348,38 +348,54 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     jfUrl.searchParams.set('Static', 'true');
     jfUrl.searchParams.set('MediaSourceId', itemId);
 
-    const transport = jfUrl.protocol === 'https:' ? https : http;
     const forwardHeaders = ['range', 'accept'];
-    const opts = {
-      hostname: jfUrl.hostname,
-      port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
-      path: jfUrl.pathname + jfUrl.search,
-      method: 'GET',
-      headers: {
-        'X-MediaBrowser-Token': apiKey,
-        ...Object.fromEntries(forwardHeaders.filter(h => req.headers[h]).map(h => [h, req.headers[h]])),
-      },
-    };
-
-    const proxyReq = transport.request(opts, (proxyRes) => {
-      const headers = { ...proxyRes.headers };
-      headers['Access-Control-Allow-Origin'] = '*';
-      headers['Cache-Control'] = 'no-cache';
-      res.writeHead(proxyRes.statusCode, headers);
-      proxyRes.pipe(res);
-    });
-
-    proxyReq.on('error', (err) => {
-      console.error('Error en proxy stream:', err.message);
-      if (!res.headersSent) res.status(502).json({ error: 'Error al conectar con Jellyfin' });
-    });
-
-    proxyReq.end();
+    streamFromJellyfin(jfUrl, apiKey, req, res, forwardHeaders, 5);
   } catch (err) {
     console.error('Error en stream:', err.message);
     if (!res.headersSent) res.status(502).json({ error: 'Error al obtener stream' });
   }
 });
+
+function streamFromJellyfin(jfUrl, apiKey, req, res, forwardHeaders, redirectsLeft) {
+  if (redirectsLeft <= 0) {
+    return res.status(502).json({ error: 'Demasiadas redirecciones' });
+  }
+
+  const transport = jfUrl.protocol === 'https:' ? https : http;
+  const opts = {
+    hostname: jfUrl.hostname,
+    port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
+    path: jfUrl.pathname + jfUrl.search,
+    method: 'GET',
+    headers: {
+      'X-MediaBrowser-Token': apiKey,
+      ...Object.fromEntries(forwardHeaders.filter(h => req.headers[h]).map(h => [h, req.headers[h]])),
+    },
+  };
+
+  const proxyReq = transport.request(opts, (proxyRes) => {
+    if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+      proxyReq.destroy();
+      const redirectUrl = new URL(proxyRes.headers.location, jfUrl.origin);
+      console.log('Siguiendo redirect a', redirectUrl.href);
+      return streamFromJellyfin(redirectUrl, apiKey, req, res, forwardHeaders, redirectsLeft - 1);
+    }
+
+    const headers = { ...proxyRes.headers };
+    headers['Access-Control-Allow-Origin'] = '*';
+    headers['Cache-Control'] = 'no-cache';
+    headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
+    res.writeHead(proxyRes.statusCode, headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error('Error en proxy stream:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Error al conectar con Jellyfin' });
+  });
+
+  proxyReq.end();
+}
 
 function proxyJellyfin(jfUrl, apiKey, res, transformBody) {
   return new Promise((resolve, reject) => {
