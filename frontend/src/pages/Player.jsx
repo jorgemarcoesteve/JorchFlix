@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiPlay, FiPause, FiMaximize, FiVolume2, FiVolumeX } from 'react-icons/fi';
+import { FiArrowLeft, FiPlay, FiPause, FiMaximize, FiVolume2, FiVolumeX, FiChevronDown } from 'react-icons/fi';
 import api from '../services/api';
 
 export default function Player() {
@@ -15,12 +15,26 @@ export default function Player() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [reanudando, setReanudando] = useState(false);
+  const [audioSel, setAudioSel] = useState(null);
+  const [subSel, setSubSel] = useState(null);
+  const [mostrarPistas, setMostrarPistas] = useState(false);
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
-      .then(({ data }) => { setInfo(data); setCargando(false); })
+      .then(({ data }) => {
+        setInfo(data);
+        setCargando(false);
+        if (data.pistas?.audio?.length > 0) {
+          const def = data.pistas.audio.find((a) => a.isDefault) || data.pistas.audio[0];
+          setAudioSel(def.index);
+        }
+        if (data.pistas?.subtitulos?.length > 0) {
+          const def = data.pistas.subtitulos.find((s) => s.isDefault) || null;
+          setSubSel(def ? def.index : -1);
+        }
+      })
       .catch(() => { setCargando(false); });
   }, [id]);
 
@@ -44,19 +58,15 @@ export default function Player() {
 
   const marcarVisto = useCallback(async () => {
     if (!id) return;
-    try {
-      await api.post(`/media/marcar-visto/${id}`);
-    } catch {}
+    try { await api.post(`/media/marcar-visto/${id}`); } catch {}
   }, [id]);
 
   useEffect(() => {
     if (!info) return;
     const interval = setInterval(() => reportarProgreso(false), 15000);
-
     const onBefore = () => { reportarProgreso(true); };
     window.addEventListener('beforeunload', onBefore);
     window.addEventListener('popstate', onBefore);
-
     return () => {
       clearInterval(interval);
       reportarProgreso(true);
@@ -112,6 +122,32 @@ export default function Player() {
     }
   };
 
+  const cambiarAudio = (idx) => {
+    setAudioSel(idx);
+    if (videoRef.current) {
+      videoRef.current.currentTime = videoRef.current.currentTime;
+    }
+  };
+
+  const cambiarSub = (idx) => {
+    setSubSel(idx);
+    if (videoRef.current) {
+      for (let i = 0; i < videoRef.current.textTracks.length; i++) {
+        videoRef.current.textTracks[i].mode = 'hidden';
+      }
+      if (idx >= 0 && idx < videoRef.current.textTracks.length) {
+        videoRef.current.textTracks[idx].mode = 'showing';
+      }
+    }
+  };
+
+  const construirUrlStream = () => {
+    const params = new URLSearchParams();
+    if (audioSel != null) params.set('AudioStreamIndex', audioSel);
+    const qs = params.toString();
+    return `/api/media/stream/${id}${qs ? '?' + qs : ''}`;
+  };
+
   const fmt = (s) => {
     if (!s || !isFinite(s)) return '0:00';
     const m = Math.floor(s / 60);
@@ -142,7 +178,7 @@ export default function Player() {
         <button onClick={() => navigate(-1)} className="text-white/70 hover:text-white transition-colors">
           <FiArrowLeft size={22} />
         </button>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-white font-semibold text-sm truncate">{info.nombre}</h1>
           {info.seriesName && (
             <p className="text-white/50 text-xs truncate">
@@ -151,12 +187,67 @@ export default function Player() {
             </p>
           )}
         </div>
+        {(info.pistas?.audio?.length > 1 || info.pistas?.subtitulos?.length > 0) && (
+          <button onClick={() => setMostrarPistas(!mostrarPistas)}
+            className="text-white/60 hover:text-white text-xs flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+            <FiChevronDown size={14} />
+            {mostrarPistas ? 'Ocultar' : 'Audio / Subs'}
+          </button>
+        )}
       </div>
+
+      {mostrarPistas && (
+        <div className="px-4 py-3 bg-black/90 border-b border-white/10">
+          {info.pistas?.audio?.length > 1 && (
+            <div className="mb-3">
+              <p className="text-white/50 text-[10px] uppercase tracking-wider mb-1.5">Audio</p>
+              <div className="flex flex-wrap gap-1.5">
+                {info.pistas.audio.map((a) => (
+                  <button key={a.index} onClick={() => cambiarAudio(a.index)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                      audioSel === a.index
+                        ? 'bg-jf-verde text-black border-jf-verde font-bold'
+                        : 'bg-white/5 text-white/70 border-white/10 hover:border-white/30'
+                    }`}>
+                    {a.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {info.pistas?.subtitulos?.length > 0 && (
+            <div>
+              <p className="text-white/50 text-[10px] uppercase tracking-wider mb-1.5">Subtítulos</p>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => cambiarSub(-1)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                    subSel === -1
+                      ? 'bg-jf-verde text-black border-jf-verde font-bold'
+                      : 'bg-white/5 text-white/70 border-white/10 hover:border-white/30'
+                  }`}>
+                  Off
+                </button>
+                {info.pistas.subtitulos.map((s, i) => (
+                  <button key={s.index} onClick={() => cambiarSub(i)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                      subSel === i
+                        ? 'bg-jf-verde text-black border-jf-verde font-bold'
+                        : 'bg-white/5 text-white/70 border-white/10 hover:border-white/30'
+                    }`}>
+                    {s.language}{s.isForced ? ' (forzado)' : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 relative flex items-center justify-center bg-black">
         <video
           ref={videoRef}
-          src={info.streamUrl || info.hlsUrl}
+          key={audioSel ?? 'default'}
+          src={construirUrlStream()}
           className="w-full h-full object-contain"
           onClick={togglePlay}
           onTimeUpdate={handleTimeUpdate}
@@ -169,13 +260,25 @@ export default function Player() {
               setReanudando(true);
               setTimeout(() => setReanudando(false), 3000);
             }
+            if (subSel != null && subSel >= 0 && v.textTracks[subSel]) {
+              v.textTracks[subSel].mode = 'showing';
+            }
           }}
           onEnded={() => { setPlaying(false); marcarVisto(); reportarProgreso(true); }}
           onPlay={() => setPlaying(true)}
           onPause={() => { setPlaying(false); reportarProgreso(true); }}
           controls={false}
           playsInline
-        />
+          crossOrigin="anonymous"
+        >
+          {info.pistas?.subtitulos?.map((s, i) => (
+            s.deliveryUrl || s.index != null ? (
+              <track key={s.index} kind="subtitles" src={`/api/media/subtitulos/${id}/${s.index}`}
+                srcLang={s.language || 'und'} label={s.title || s.language}
+                default={s.isDefault && subSel === i} />
+            ) : null
+          ))}
+        </video>
 
         {!playing && (
           <button onClick={togglePlay}

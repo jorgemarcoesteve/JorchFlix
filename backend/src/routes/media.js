@@ -267,12 +267,27 @@ router.get('/player-info/:itemId', autenticar, async (req, res) => {
     const resumeSeconds = Math.floor(ticks / 10000000);
 
     const mediaSource = data.MediaSources?.[0];
-    const streamUrl = mediaSource
-      ? `${baseUrl}/Videos/${req.params.itemId}/stream?api_key=${apiKey}&static=true`
-      : null;
-
-    const hlsUrl = `${baseUrl}/Videos/${req.params.itemId}/master.m3u8?api_key=${apiKey}`;
     const played = data.UserData?.Played || false;
+
+    const pistas = {
+      audio: (mediaSource?.MediaStreams || []).filter((s) => s.Type === 'Audio').map((s) => ({
+        index: s.Index,
+        language: s.Language || 'desconocido',
+        title: s.DisplayTitle || s.Language || `Pista ${s.Index}`,
+        codec: s.Codec,
+        isDefault: s.IsDefault,
+      })),
+      subtitulos: (mediaSource?.MediaStreams || []).filter((s) => s.Type === 'Subtitle').map((s) => ({
+        index: s.Index,
+        language: s.Language || 'desconocido',
+        title: s.DisplayTitle || s.Language || `Subtítulo ${s.Index}`,
+        codec: s.Codec,
+        isDefault: s.IsDefault,
+        isForced: s.IsForced,
+        isExternal: s.IsExternal,
+        deliveryUrl: s.DeliveryUrl,
+      })),
+    };
 
     res.json({
       id: data.Id,
@@ -285,14 +300,88 @@ router.get('/player-info/:itemId', autenticar, async (req, res) => {
       image: `${baseUrl}/Items/${data.Id}/Images/Primary?api_key=${apiKey}&width=400`,
       resumeSeconds,
       played,
-      streamUrl,
-      hlsUrl,
+      streamUrl: `/api/media/stream/${req.params.itemId}`,
       runtimeTicks: data.RunTimeTicks,
       container: mediaSource?.Container,
+      mediaSourceId: mediaSource?.Id,
+      pistas,
     });
   } catch (err) {
     console.error('Error al obtener info del item:', err.response?.status, err.message);
     res.status(404).json({ error: 'Item no encontrado' });
+  }
+});
+
+router.get('/stream/:itemId', autenticar, async (req, res) => {
+  try {
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+
+    const jfUrl = `${baseUrl}/Videos/${req.params.itemId}/stream`;
+    const range = req.headers.range;
+
+    const params = {};
+    if (req.query.AudioStreamIndex) params.AudioStreamIndex = req.query.AudioStreamIndex;
+
+    const headers = { 'X-MediaBrowser-Token': apiKey, 'Accept': '*/*' };
+    if (range) headers['Range'] = range;
+
+    const response = await axios({
+      method: 'GET',
+      url: jfUrl,
+      params,
+      headers,
+      responseType: 'stream',
+      timeout: 0,
+    });
+
+    if (response.headers['content-type']) {
+      res.setHeader('Content-Type', response.headers['content-type']);
+    }
+    if (response.headers['content-length']) {
+      res.setHeader('Content-Length', response.headers['content-length']);
+    }
+    if (response.headers['content-range']) {
+      res.setHeader('Content-Range', response.headers['content-range']);
+    }
+    if (response.headers['accept-ranges']) {
+      res.setHeader('Accept-Ranges', response.headers['accept-ranges']);
+    }
+    res.status(response.status);
+    response.data.pipe(res);
+  } catch (err) {
+    if (err.response) {
+      res.status(err.response.status).json({ error: 'Error en stream' });
+    } else {
+      res.status(500).json({ error: 'Error al obtener stream' });
+    }
+  }
+});
+
+router.get('/subtitulos/:itemId/:subIndex', autenticar, async (req, res) => {
+  try {
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+    if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
+
+    const response = await axios({
+      method: 'GET',
+      url: `${baseUrl}/Videos/${req.params.itemId}/${req.params.itemId}/Subtitles/${req.params.subIndex}/Stream`,
+      params: { api_key: apiKey },
+      responseType: 'stream',
+      timeout: 10000,
+    });
+
+    let ct = response.headers['content-type'] || 'text/plain';
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    response.data.pipe(res);
+  } catch (err) {
+    console.error('Error al obtener subtítulo:', err.message);
+    res.status(404).json({ error: 'Subtítulo no encontrado' });
   }
 });
 
