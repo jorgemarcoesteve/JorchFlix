@@ -394,6 +394,8 @@ router.get('/stream-audio/:itemId', verificarTokenDesdeQuery, async (req, res) =
     const itemId = req.params.itemId;
     const userId = req.usuario.jellyfin_id;
 
+    console.log('DEBUG stream-audio query:', req.query);
+
     const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/stream`);
     jfUrl.searchParams.set('api_key', apiKey);
     jfUrl.searchParams.set('UserId', userId);
