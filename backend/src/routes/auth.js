@@ -28,7 +28,10 @@ router.post('/login', async (req, res) => {
     if (!user) {
       const { v4: uuidv4 } = require('uuid');
       const id = uuidv4();
-      db.run('INSERT INTO usuarios (id, jellyfin_id, nombre_usuario) VALUES (?, ?, ?)', [id, jellyfinId, usuario]);
+      const totalUsuarios = db.get('SELECT COUNT(*) as count FROM usuarios');
+      const esAdmin = totalUsuarios.count === 0 ? 1 : 0;
+      db.run('INSERT INTO usuarios (id, jellyfin_id, nombre_usuario, es_admin) VALUES (?, ?, ?, ?)',
+        [id, jellyfinId, usuario, esAdmin]);
       user = db.get('SELECT * FROM usuarios WHERE id = ?', [id]);
     }
 
