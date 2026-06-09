@@ -565,7 +565,7 @@ router.post('/reportar-progreso/:itemId', autenticar, async (req, res) => {
     if (positionTicks == null) return res.status(400).json({ error: 'positionTicks requerido' });
 
     const db = getDatabase();
-    const existe = db.get('SELECT id FROM progreso WHERE usuario_id = ? AND item_id = ?', [req.usuario.id, req.params.itemId]);
+    const existe = db.get('SELECT usuario_id FROM progreso WHERE usuario_id = ? AND item_id = ?', [req.usuario.id, req.params.itemId]);
     if (existe) {
       db.run('UPDATE progreso SET position_ticks = ?, actualizado_en = datetime(\'now\') WHERE usuario_id = ? AND item_id = ?',
         [positionTicks, req.usuario.id, req.params.itemId]);
