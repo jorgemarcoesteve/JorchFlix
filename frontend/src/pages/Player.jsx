@@ -42,8 +42,7 @@ export default function Player() {
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
-  const audioMapRef = useRef({});
-  const subMapRef = useRef({});
+  const trackElsRef = useRef({});
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -195,73 +194,58 @@ export default function Player() {
     }
   };
 
-  const cambiarAudio = (idx) => {
-    setAudioSel(idx);
-    guardarPrefs(id, { audioIndex: idx });
+  const aplicarAudio = (jfIdx) => {
     const v = videoRef.current;
-    if (!v?.audioTracks) return;
-    const bIdx = audioMapRef.current[idx];
-    if (bIdx == null) return;
-    for (let i = 0; i < v.audioTracks.length; i++) {
-      v.audioTracks[i].enabled = i === bIdx;
+    if (!v) return;
+    if (v.audioTracks?.length > 0) {
+      for (const jf of info?.pistas?.audio || []) {
+        if (jf.index !== jfIdx) continue;
+        for (let i = 0; i < v.audioTracks.length; i++) {
+          const bt = v.audioTracks[i];
+          if (bt.language === jf.language && bt.label === jf.title) {
+            v.audioTracks[i].enabled = true;
+            return;
+          }
+        }
+      }
     }
   };
 
-  const cambiarSub = (idx) => {
-    setSubSel(idx);
-    guardarPrefs(id, { subIndex: idx });
+  const aplicarSub = (jfIdx) => {
     const v = videoRef.current;
     if (!v) return;
     for (let i = 0; i < v.textTracks.length; i++) {
       v.textTracks[i].mode = 'hidden';
     }
-    if (idx >= 0) {
-      const bIdx = subMapRef.current[idx];
-      if (bIdx != null) v.textTracks[bIdx].mode = 'showing';
-    }
-  };
-
-  const mapearPistas = () => {
-    const v = videoRef.current;
-    if (!v) return;
-
-    audioMapRef.current = {};
-    if (info?.pistas?.audio && v.audioTracks) {
-      for (const jf of info.pistas.audio) {
-        for (let i = 0; i < v.audioTracks.length; i++) {
-          const bt = v.audioTracks[i];
-          if (bt.language === jf.language && bt.label === jf.title) {
-            audioMapRef.current[jf.index] = i;
-            break;
-          }
-        }
+    if (jfIdx >= 0) {
+      const el = trackElsRef.current[jfIdx];
+      if (el?.track) {
+        el.track.mode = 'showing';
+        return;
       }
-      if (audioSel != null && audioMapRef.current[audioSel] != null) {
-        const bIdx = audioMapRef.current[audioSel];
-        for (let i = 0; i < v.audioTracks.length; i++) {
-          v.audioTracks[i].enabled = i === bIdx;
-        }
-      }
-    }
-
-    subMapRef.current = {};
-    if (info?.pistas?.subtitulos) {
-      for (const jf of info.pistas.subtitulos) {
+      for (const jf of info?.pistas?.subtitulos || []) {
+        if (jf.index !== jfIdx) continue;
         for (let i = 0; i < v.textTracks.length; i++) {
           const bt = v.textTracks[i];
           if (bt.language === jf.language && bt.label === jf.title) {
-            subMapRef.current[jf.index] = i;
-            break;
+            v.textTracks[i].mode = 'showing';
+            return;
           }
         }
       }
-      for (let i = 0; i < v.textTracks.length; i++) {
-        v.textTracks[i].mode = 'hidden';
-      }
-      if (subSel >= 0 && subMapRef.current[subSel] != null) {
-        v.textTracks[subMapRef.current[subSel]].mode = 'showing';
-      }
     }
+  };
+
+  const cambiarAudio = (idx) => {
+    setAudioSel(idx);
+    guardarPrefs(id, { audioIndex: idx });
+    aplicarAudio(idx);
+  };
+
+  const cambiarSub = (idx) => {
+    setSubSel(idx);
+    guardarPrefs(id, { subIndex: idx });
+    aplicarSub(idx);
   };
 
   const fmt = (s) => {
@@ -343,7 +327,7 @@ export default function Player() {
                   }`}>
                   Off
                 </button>
-                {info.pistas.subtitulos.map((s, i) => (
+                {info.pistas.subtitulos.map((s) => (
                   <button key={s.index} onClick={() => cambiarSub(s.index)}
                     className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
                       subSel === s.index
@@ -368,7 +352,8 @@ export default function Player() {
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            mapearPistas();
+            aplicarAudio(audioSel);
+            aplicarSub(subSel);
             if (info?.resumeSeconds > 1) {
               v.currentTime = info.resumeSeconds;
               setReanudando(true);
@@ -380,7 +365,16 @@ export default function Player() {
           onPause={() => { setPlaying(false); reportarProgreso(true); }}
           controls={false}
           playsInline
-        />
+        >
+          {info.pistas.subtitulos.map((s) => (
+            <track key={s.index} kind="subtitles"
+              ref={el => { if (el) trackElsRef.current[s.index] = el; }}
+              src={`/api/media/subtitulos/${id}/${s.index}?token=${token}`}
+              srcLang={s.language || 'und'}
+              label={s.title || s.language} />
+          ))}
+        </video>
+
         {!playing && (
           <button onClick={togglePlay}
             className="absolute inset-0 flex items-center justify-center bg-black/30 group">
