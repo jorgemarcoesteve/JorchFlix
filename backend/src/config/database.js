@@ -139,6 +139,15 @@ function inicializarEsquema() {
     FOREIGN KEY (peticion_id) REFERENCES peticiones(id)
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS progreso (
+    usuario_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    position_ticks INTEGER NOT NULL DEFAULT 0,
+    actualizado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (usuario_id, item_id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  )`);
+
   try {
     db.run("ALTER TABLE usuarios ADD COLUMN peticiones_maximas INTEGER NOT NULL DEFAULT 0");
   } catch (e) {}

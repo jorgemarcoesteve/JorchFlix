@@ -265,7 +265,9 @@ router.get('/player-info/:itemId', autenticar, async (req, res) => {
       timeout: 5000,
     });
 
-    const ticks = data.UserData?.PlaybackPositionTicks || 0;
+    const db = getDatabase();
+    const progresoLocal = db.get('SELECT position_ticks FROM progreso WHERE usuario_id = ? AND item_id = ?', [req.usuario.id, req.params.itemId]);
+    const ticks = progresoLocal?.position_ticks || data.UserData?.PlaybackPositionTicks || 0;
     const resumeSeconds = Math.floor(ticks / 10000000);
 
     const mediaSource = data.MediaSources?.[0];
@@ -398,38 +400,23 @@ router.get('/reproducir-directo/:itemId', autenticar, async (req, res) => {
 
 router.post('/reportar-progreso/:itemId', autenticar, async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
-    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
-    if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
-
-    const { positionTicks, isPaused } = req.body;
+    const { positionTicks } = req.body;
     if (positionTicks == null) return res.status(400).json({ error: 'positionTicks requerido' });
 
-    await axios.post(
-      `${baseUrl}/Users/${req.usuario.jellyfin_id}/Items/${req.params.itemId}/PlaybackProgress`,
-      {
-        PlaySessionId: req.body.playSessionId,
-        PositionTicks: positionTicks,
-        IsPaused: isPaused || false,
-        IsMuted: false,
-        VolumeLevel: 100,
-        PlayMethod: 'DirectStream',
-        PlaybackRate: 1,
-      },
-      {
-        headers: {
-          'X-MediaBrowser-Token': apiKey,
-          'Content-Type': 'application/json',
-        },
-        timeout: 5000,
-      }
-    );
+    const db = getDatabase();
+    const existe = db.get('SELECT id FROM progreso WHERE usuario_id = ? AND item_id = ?', [req.usuario.id, req.params.itemId]);
+    if (existe) {
+      db.run('UPDATE progreso SET position_ticks = ?, actualizado_en = datetime(\'now\') WHERE usuario_id = ? AND item_id = ?',
+        [positionTicks, req.usuario.id, req.params.itemId]);
+    } else {
+      db.run('INSERT INTO progreso (usuario_id, item_id, position_ticks) VALUES (?, ?, ?)',
+        [req.usuario.id, req.params.itemId, positionTicks]);
+    }
 
     res.json({ ok: true });
   } catch (err) {
-    console.error('Error al reportar progreso:', err.message);
-    res.status(500).json({ error: 'Error al reportar progreso' });
+    console.error('Error al guardar progreso:', err.message);
+    res.status(500).json({ error: 'Error al guardar progreso' });
   }
 });
 
