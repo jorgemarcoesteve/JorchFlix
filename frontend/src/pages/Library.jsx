@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiFilm, FiMonitor, FiFolder, FiExternalLink, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiFilm, FiMonitor, FiFolder, FiExternalLink, FiChevronLeft, FiChevronRight, FiEye, FiPlay } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 
 const iconosTipo = {
@@ -16,6 +17,30 @@ const coloresTipo = {
   Shows: 'from-purple-500/20 to-pink-500/20 text-purple-400',
   default: 'from-emerald-500/20 to-teal-500/20 text-emerald-400',
 };
+
+function BarraProgreso({ pct }) {
+  if (!pct || pct <= 0) return null;
+  return (
+    <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-1.5">
+      <div className="h-full bg-jf-verde rounded-full transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%` }} />
+    </div>
+  );
+}
+
+function BadgeProgreso({ item }) {
+  const ud = item.UserData;
+  if (!ud) return null;
+
+  if (item.Type === 'Series' || item.Type === 'Season') {
+    if (ud.Played) return <span className="chip bg-jf-verde/20 text-jf-verde border-jf-verde/30 text-[10px]"><FiEye size={10} /> Completada</span>;
+    if (ud.UnplayedItemCount > 0) return <span className="chip bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px]">{ud.PlayedCount || 0}/{ud.UnplayedItemCount + (ud.PlayedCount || 0)} eps</span>;
+    return null;
+  }
+
+  if (ud.Played) return <span className="chip bg-jf-verde/20 text-jf-verde border-jf-verde/30 text-[10px]"><FiEye size={10} /> Visto</span>;
+  if (ud.PlayedPercentage > 0 && ud.PlayedPercentage < 100) return <span className="chip bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px]">{Math.round(ud.PlayedPercentage)}%</span>;
+  return null;
+}
 
 export default function Library() {
   const [carpetas, setCarpetas] = useState([]);
@@ -105,15 +130,25 @@ export default function Library() {
           <p className="text-sm text-jf-muted mb-4">{total} items en {carpetaActual?.Name || 'biblioteca'}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {items.map((item) => {
-              const titulo = item.Name || item.Name;
+              const titulo = item.Name;
               const year = item.PremiereDate?.slice(0, 4) || item.ProductionYear;
               const tmdbId = item.ProviderIds?.TmdbId;
               const img = item.ImageTags?.Primary
-                ? `${api.defaults.baseURL?.replace('/api', '') || ''}/Items/${item.Id}/Images/Primary`
+                ? `/api/media/imagen/${item.Id}`
                 : null;
+              const badge = BadgeProgreso({ item });
+              const pct = item.UserData?.PlayedPercentage;
               return (
                 <div key={item.Id} className="media-card group">
                   <div className="aspect-[2/3] bg-jf-hover rounded-2xl overflow-hidden relative">
+                    {badge && (
+                      <div className="absolute top-2 left-2 z-20">{badge}</div>
+                    )}
+                    {item.UserData?.Played && (
+                      <div className="absolute inset-0 z-10 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <FiEye className="text-white/80" size={32} />
+                      </div>
+                    )}
                     {img ? (
                       <img src={img} alt={titulo}
                         className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
@@ -123,13 +158,14 @@ export default function Library() {
                         <Icono className="text-jf-muted/20" size={36} />
                       </div>
                     )}
+                    <BarraProgreso pct={pct} />
                     <div className="media-overlay" />
                     <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 group-hover:translate-y-0 transition-transform duration-300 z-10">
                       <p className="text-white font-semibold text-sm truncate drop-shadow-lg">{titulo}</p>
                       {year && <p className="text-white/60 text-xs mt-1">{year}</p>}
                     </div>
                     {tmdbId ? (
-                      <a href={`/media/${item.Type === 'Series' || item.Type === 'Season' ? 'tv' : 'movie'}/${tmdbId}`}
+                      <Link to={`/media/${item.Type === 'Series' || item.Type === 'Season' ? 'tv' : 'movie'}/${tmdbId}`}
                         className="absolute inset-0 z-10" />
                     ) : (
                       <a href={`${api.defaults.baseURL?.replace('/api', '') || ''}/web/#/details?id=${item.Id}`}

@@ -213,14 +213,14 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
     const { parentId, tipo, limit, startIndex } = req.query;
     const params = {
       Recursive: true,
-      Fields: 'PrimaryImageAspectRatio,Overview,PremiereDate,CommunityRating,ProviderIds',
+      Fields: 'PrimaryImageAspectRatio,Overview,PremiereDate,CommunityRating,ProviderIds,UserData,Path',
       Limit: parseInt(limit) || 50,
-      startIndex: parseInt(startIndex) || 0,
+      StartIndex: parseInt(startIndex) || 0,
     };
     if (parentId) params.ParentId = parentId;
     if (tipo) params.IncludeItemTypes = tipo;
 
-    const { data } = await axios.get(`${config.jellyfin.url}/Items`, {
+    const { data } = await axios.get(`${config.jellyfin.url}/Users/${req.usuario.jellyfin_id}/Items`, {
       params,
       headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
       timeout: 8000,
@@ -229,6 +229,24 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
   } catch (err) {
     console.error('Error al obtener items de Jellyfin:', err.message);
     res.status(500).json({ error: 'Error al obtener contenido' });
+  }
+});
+
+router.get('/imagen/:itemId', autenticar, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const { width } = req.query;
+    const response = await axios.get(`${config.jellyfin.url}/Items/${itemId}/Images/Primary`, {
+      params: { width: width || 300, quality: 90, fillHeight: 450 },
+      headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+      responseType: 'stream',
+      timeout: 5000,
+    });
+    res.setHeader('Content-Type', response.headers['content-type']);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    response.data.pipe(res);
+  } catch (err) {
+    res.status(404).json({ error: 'Imagen no encontrada' });
   }
 });
 
