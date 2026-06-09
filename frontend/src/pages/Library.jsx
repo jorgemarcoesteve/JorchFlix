@@ -114,14 +114,7 @@ export default function Library() {
     if (navegacion.length === 0) return;
     const nueva = navegacion.slice(0, -1);
     setNavegacion(nueva);
-    if (nueva.length === 0) {
-      setParentActual(null);
-      cargarItems(carpetaActiva, false);
-    } else {
-      const ant = nueva[nueva.length - 1];
-      setParentActual(ant.id);
-      cargarItems(ant.id, true);
-    }
+    setParentActual(nueva.length > 0 ? nueva[nueva.length - 1].id : null);
     setPagina(0);
   };
 

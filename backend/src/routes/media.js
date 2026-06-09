@@ -227,10 +227,10 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
     if (hijosDe) {
       params.ParentId = hijosDe;
       params.Recursive = false;
-      params.ExcludeItemTypes = 'Season';
     } else if (parentId) {
       params.ParentId = parentId;
       params.Recursive = true;
+      params.ExcludeItemTypes = 'Season,Episode';
       if (tipo) params.IncludeItemTypes = tipo;
     } else {
       params.Recursive = true;
