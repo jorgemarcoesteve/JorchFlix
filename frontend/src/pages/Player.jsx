@@ -271,7 +271,6 @@ export default function Player() {
           onPause={() => { setPlaying(false); reportarProgreso(true); }}
           controls={false}
           playsInline
-          crossOrigin="anonymous"
         >
           {info.pistas?.subtitulos?.map((s, i) => (
             s.deliveryUrl || s.index != null ? (

@@ -335,44 +335,15 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
 
-    const jfUrl = `${baseUrl}/Videos/${req.params.itemId}/stream`;
-    const range = req.headers.range;
+    const params = new URLSearchParams({ api_key: apiKey, Static: 'true' });
+    if (req.query.AudioStreamIndex) params.set('AudioStreamIndex', req.query.AudioStreamIndex);
 
-    const params = {};
-    if (req.query.AudioStreamIndex) params.AudioStreamIndex = req.query.AudioStreamIndex;
-
-    const headers = { 'X-MediaBrowser-Token': apiKey, 'Accept': '*/*' };
-    if (range) headers['Range'] = range;
-
-    const response = await axios({
-      method: 'GET',
-      url: jfUrl,
-      params,
-      headers,
-      responseType: 'stream',
-      timeout: 0,
-    });
-
-    if (response.headers['content-type']) {
-      res.setHeader('Content-Type', response.headers['content-type']);
-    }
-    if (response.headers['content-length']) {
-      res.setHeader('Content-Length', response.headers['content-length']);
-    }
-    if (response.headers['content-range']) {
-      res.setHeader('Content-Range', response.headers['content-range']);
-    }
-    if (response.headers['accept-ranges']) {
-      res.setHeader('Accept-Ranges', response.headers['accept-ranges']);
-    }
-    res.status(response.status);
-    response.data.pipe(res);
+    const jfUrl = `${baseUrl}/Videos/${req.params.itemId}/stream?${params.toString()}`;
+    console.log('Redirigiendo stream a Jellyfin:', jfUrl.replace(apiKey, '***'));
+    res.redirect(jfUrl);
   } catch (err) {
-    if (err.response) {
-      res.status(err.response.status).json({ error: 'Error en stream' });
-    } else {
-      res.status(500).json({ error: 'Error al obtener stream' });
-    }
+    console.error('Error en stream:', err.message);
+    res.status(500).json({ error: 'Error en stream' });
   }
 });
 
