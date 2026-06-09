@@ -13,7 +13,7 @@ function autenticar(req, res, next) {
   try {
     const decoded = jwt.verify(token, config.jwtSecret);
     const db = getDatabase();
-    const usuario = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(decoded.id);
+    const usuario = db.get('SELECT * FROM usuarios WHERE id = ?', [decoded.id]);
 
     if (!usuario) {
       return res.status(401).json({ error: 'Usuario no encontrado' });

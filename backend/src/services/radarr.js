@@ -1,7 +1,6 @@
 const axios = require('axios');
 const config = require('../config');
 const SettingsService = require('./settings');
-const { getDatabase } = require('../config/database');
 
 async function enviarAPelicula(tmdbId, titulo) {
   const url = SettingsService.getWithFallback('radarr_url', config.radarr.url);

@@ -1,5 +1,8 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { FiSearch, FiChevronDown } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
 
 function Logo({ size = 'md' }) {
   const sizes = { sm: 'h-8', md: 'h-10', lg: 'h-14' };
@@ -22,31 +25,6 @@ function Logo({ size = 'md' }) {
     </div>
   );
 }
-
-export function Navbar() {
-  return (
-    <motion.nav
-      initial={{ y: -80 }}
-      animate={{ y: 0 }}
-      className="fixed top-0 left-0 right-0 z-50 bg-jf-fondo/80 backdrop-blur-xl border-b border-jf-borde"
-    >
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <Logo />
-        </Link>
-        <div className="flex items-center gap-4">
-          <SearchBar />
-          <UserMenu />
-        </div>
-      </div>
-    </motion.nav>
-  );
-}
-
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FiSearch } from 'react-icons/fi';
-import { useAuth } from '../context/AuthContext';
 
 function SearchBar() {
   const [q, setQ] = useState('');
@@ -140,6 +118,22 @@ function UserMenu() {
   );
 }
 
-import { FiChevronDown } from 'react-icons/fi';
-
-export default Navbar;
+export default function Navbar() {
+  return (
+    <motion.nav
+      initial={{ y: -80 }}
+      animate={{ y: 0 }}
+      className="fixed top-0 left-0 right-0 z-50 bg-jf-fondo/80 backdrop-blur-xl border-b border-jf-borde"
+    >
+      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2">
+          <Logo />
+        </Link>
+        <div className="flex items-center gap-4">
+          <SearchBar />
+          <UserMenu />
+        </div>
+      </div>
+    </motion.nav>
+  );
+}

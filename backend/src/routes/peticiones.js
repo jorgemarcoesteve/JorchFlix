@@ -8,7 +8,7 @@ const { enviarWebhook } = require('../services/webhook');
 
 const router = Router();
 
-router.get('/', autenticar, (req, res) => {
+router.get('/', autenticar, esAdmin, (req, res) => {
   const db = getDatabase();
   const peticiones = db.all(
     'SELECT p.*, u.nombre_usuario FROM peticiones p JOIN usuarios u ON p.usuario_id = u.id ORDER BY p.creado_en DESC'
