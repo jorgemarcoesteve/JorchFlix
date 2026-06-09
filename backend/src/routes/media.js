@@ -374,6 +374,45 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
   }
 });
 
+function proxyJellyfin(jfUrl, apiKey, res, transformBody) {
+  return new Promise((resolve, reject) => {
+    const transport = jfUrl.protocol === 'https:' ? https : http;
+    const opts = {
+      hostname: jfUrl.hostname,
+      port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
+      path: jfUrl.pathname + jfUrl.search,
+      method: 'GET',
+      headers: { 'X-MediaBrowser-Token': apiKey },
+    };
+    const proxyReq = transport.request(opts, (proxyRes) => {
+      if (transformBody) {
+        let body = '';
+        proxyRes.setEncoding('utf8');
+        proxyRes.on('data', chunk => body += chunk);
+        proxyRes.on('end', () => {
+          try {
+            const result = transformBody(body, proxyRes.headers['content-type'] || '');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cache-Control', 'public, max-age=30');
+            res.status(proxyRes.statusCode);
+            if (result.contentType) res.setHeader('Content-Type', result.contentType);
+            res.send(result.body);
+            resolve();
+          } catch (e) { reject(e); }
+        });
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.writeHead(proxyRes.statusCode, proxyRes.headers['content-type'] || '');
+        proxyRes.pipe(res);
+        proxyRes.on('end', resolve);
+      }
+    });
+    proxyReq.on('error', (err) => { console.error('Proxy error:', err.message); reject(err); });
+    proxyReq.end();
+  });
+}
+
 router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
@@ -392,10 +431,41 @@ router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res
     jfUrl.searchParams.set('DeviceId', 'JorchFlix');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
 
-    res.redirect(jfUrl.toString());
+    const jfBasePath = new URL(baseUrl).pathname.replace(/\/+$/, '');
+
+    await proxyJellyfin(jfUrl, apiKey, res, (body) => {
+      const proxyPrefix = `/api/media/hls/${itemId}`;
+      const rewritten = body
+        .replace(new RegExp(`${jfBasePath}\\/Videos\\/${itemId}\\/`, 'g'), `${proxyPrefix}/`)
+        .replace(/^(?!https?:\/\/)(?!\s*#|#)(.+)$/gm, (line) => {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) return line;
+          if (/^https?:\/\//i.test(trimmed)) return line;
+          return `${proxyPrefix}/segment/${trimmed}`;
+        });
+      return { body: rewritten, contentType: 'application/vnd.apple.mpegurl' };
+    });
   } catch (err) {
-    console.error('Error en HLS:', err.message);
-    res.status(502).json({ error: 'Error al obtener HLS de Jellyfin' });
+    console.error('Error en HLS master:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Error al obtener HLS de Jellyfin' });
+  }
+});
+
+router.get('/hls/:itemId/segment/*', verificarTokenDesdeQuery, async (req, res) => {
+  try {
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+
+    const itemId = req.params.itemId;
+    const restPath = req.params[0];
+    const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/${restPath}`);
+    Object.entries(req.query).forEach(([k, v]) => { if (k !== 'token') jfUrl.searchParams.set(k, v); });
+
+    await proxyJellyfin(jfUrl, apiKey, res);
+  } catch (err) {
+    console.error('Error en HLS segment:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Error al obtener segmento HLS' });
   }
 });
 
