@@ -342,8 +342,9 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
 
     const jfUrl = new URL(`${baseUrl}/Videos/${req.params.itemId}/stream`);
     jfUrl.searchParams.set('api_key', apiKey);
-    jfUrl.searchParams.set('Static', 'true');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
+
+    console.log('Stream proxy a Jellyfin:', jfUrl.toString().replace(apiKey, '***'));
 
     const transport = jfUrl.protocol === 'https:' ? https : http;
     const opts = {
@@ -357,12 +358,26 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     if (req.headers.range) opts.headers['Range'] = req.headers.range;
 
     const proxyReq = transport.request(opts, (proxyRes) => {
-      const h = proxyRes.headers;
-      if (h['content-type']) res.setHeader('Content-Type', h['content-type']);
-      if (h['content-length']) res.setHeader('Content-Length', h['content-length']);
-      if (h['content-range']) res.setHeader('Content-Range', h['content-range']);
-      if (h['accept-ranges']) res.setHeader('Accept-Ranges', h['accept-ranges']);
-      res.writeHead(proxyRes.statusCode);
+      const status = proxyRes.statusCode;
+      const ct = proxyRes.headers['content-type'] || '';
+
+      console.log('Jellyfin respondió:', status, ct);
+
+      if (status < 200 || status >= 300) {
+        let body = '';
+        proxyRes.on('data', (chunk) => { body += chunk.toString(); });
+        proxyRes.on('end', () => {
+          console.error('Jellyfin error stream:', status, body.slice(0, 500));
+          res.status(502).json({ error: `Jellyfin respondió con ${status}`, detalle: body.slice(0, 200) });
+        });
+        return;
+      }
+
+      if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type']);
+      if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
+      if (proxyRes.headers['content-range']) res.setHeader('Content-Range', proxyRes.headers['content-range']);
+      if (proxyRes.headers['accept-ranges']) res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges']);
+      res.writeHead(status);
       proxyRes.pipe(res);
     });
 
