@@ -39,6 +39,7 @@ export default function Player() {
   const [subSel, setSubSel] = useState(null);
   const [mostrarPistas, setMostrarPistas] = useState(false);
   const [controlesVisibles, setControlesVisibles] = useState(true);
+  const [debug, setDebug] = useState('');
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
@@ -196,18 +197,26 @@ export default function Player() {
 
   const aplicarAudio = (jfIdx) => {
     const v = videoRef.current;
-    if (!v) return;
-    if (v.audioTracks?.length > 0) {
+    if (!v) { setDebug('No video ref'); return; }
+    if (!v.audioTracks) { setDebug('No audioTracks API'); return; }
+    setDebug(`audioTracks: ${v.audioTracks.length}, buscando idx ${jfIdx}`);
+    for (let i = 0; i < v.audioTracks.length; i++) {
+      setDebug(d => d + ` [${i}] lang=${v.audioTracks[i].language} label=${v.audioTracks[i].label} enabled=${v.audioTracks[i].enabled}`);
+    }
+    if (v.audioTracks.length > 0) {
       for (const jf of info?.pistas?.audio || []) {
         if (jf.index !== jfIdx) continue;
         for (let i = 0; i < v.audioTracks.length; i++) {
           const bt = v.audioTracks[i];
           if (bt.language === jf.language && bt.label === jf.title) {
             v.audioTracks[i].enabled = true;
+            setDebug(d => d + ` -> enabled [${i}]`);
             return;
           }
         }
       }
+      setDebug(d => d + ' -> sin match, activando primera');
+      v.audioTracks[0].enabled = true;
     }
   };
 
@@ -425,6 +434,11 @@ export default function Player() {
       {info.overview && (
         <div className={`px-4 py-2 bg-black/80 border-t border-white/5 transition-opacity duration-300 ${controlesVisibles ? 'opacity-100' : 'opacity-0'}`}>
           <p className="text-white/40 text-xs line-clamp-2">{info.overview}</p>
+        </div>
+      )}
+      {debug && (
+        <div className="px-2 py-1 bg-yellow-900/80 text-yellow-200 text-[10px] font-mono leading-tight max-h-20 overflow-y-auto">
+          {debug}
         </div>
       )}
     </div>
