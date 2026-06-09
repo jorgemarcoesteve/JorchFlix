@@ -52,10 +52,12 @@ router.get('/health', autenticar, esAdmin, async (req, res) => {
 
   const [jellyfin, radarr, sonarr, tmdb] = await Promise.all([
     (async () => {
-      if (!config.jellyfin.url || !config.jellyfin.apiKey) return { estado: 'no configurado' };
+      const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+      const jfKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+      if (!jfUrl || !jfKey) return { estado: 'no configurado' };
       try {
-        await axios.get(`${config.jellyfin.url}/System/Info`, {
-          headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+        await axios.get(`${jfUrl}/System/Info`, {
+          headers: { 'X-MediaBrowser-Token': jfKey },
           timeout: 5000,
         });
         return { estado: 'ok' };

@@ -2,6 +2,7 @@ const { Router } = require('express');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const config = require('../config');
+const SettingsService = require('../services/settings');
 const { getDatabase } = require('../config/database');
 const { autenticar } = require('../middleware/auth');
 
@@ -15,7 +16,9 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const respuesta = await axios.post(`${config.jellyfin.url}/Users/authenticatebyname`, {
+    const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+
+    const respuesta = await axios.post(`${jfUrl}/Users/authenticatebyname`, {
       Username: usuario,
       Pw: contrasena,
     }, {

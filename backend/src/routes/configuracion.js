@@ -7,6 +7,7 @@ const { autenticar, esAdmin } = require('../middleware/auth');
 const router = Router();
 
 const CLAVES_PERMITIDAS = [
+  'jellyfin_url', 'jellyfin_api_key',
   'radarr_url', 'radarr_api_key', 'radarr_root_path', 'radarr_quality_profile_id',
   'sonarr_url', 'sonarr_api_key', 'sonarr_root_path', 'sonarr_quality_profile_id',
   'tmdb_api_key',
@@ -14,12 +15,19 @@ const CLAVES_PERMITIDAS = [
 ];
 
 router.get('/', autenticar, esAdmin, (_req, res) => {
+  const DEFAULTS = {
+    jellyfin_url: config.jellyfin.url,
+    jellyfin_api_key: config.jellyfin.apiKey,
+    radarr_url: config.radarr.url,
+    radarr_api_key: config.radarr.apiKey,
+    sonarr_url: config.sonarr.url,
+    sonarr_api_key: config.sonarr.apiKey,
+    tmdb_api_key: config.tmdb.apiKey,
+  };
   const settings = {};
   for (const clave of CLAVES_PERMITIDAS) {
-    const valor = SettingsService.get(clave);
-    if (valor !== null) {
-      settings[clave] = valor;
-    }
+    const valor = SettingsService.get(clave) || DEFAULTS[clave] || '';
+    settings[clave] = valor;
   }
   res.json(settings);
 });

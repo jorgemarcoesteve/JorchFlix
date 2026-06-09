@@ -181,6 +181,27 @@ export default function AdminSettings() {
         </div>
       ) : (
         <form onSubmit={guardar} className="space-y-4">
+          <div className="card p-5 mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white">Jellyfin</h3>
+              {health?.jellyfin && <Indicador estado={health.jellyfin} />}
+            </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-jf-muted mb-1">URL</label>
+                <input type="text" value={settings.jellyfin_url || ''}
+                  onChange={(e) => actualizar('jellyfin_url', e.target.value)}
+                  placeholder="http://192.168.1.100:8096" className="input text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-jf-muted mb-1">API Key</label>
+                <input type="password" value={settings.jellyfin_api_key || ''}
+                  onChange={(e) => actualizar('jellyfin_api_key', e.target.value)}
+                  placeholder="Clave de API de Jellyfin" className="input text-sm" />
+              </div>
+            </div>
+          </div>
+
           <SeccionServicio
             titulo="Radarr (Películas)" prefijo="radarr"
             settings={settings} onChange={actualizar}

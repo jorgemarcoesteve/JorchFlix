@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const axios = require('axios');
 const config = require('../config');
+const SettingsService = require('../services/settings');
 const { autenticar } = require('../middleware/auth');
 const tmdb = require('../services/tmdb');
 
@@ -107,15 +108,18 @@ router.get('/reproducir', autenticar, async (req, res) => {
     const { tmdb_id, tipo } = req.query;
     if (!tmdb_id || !tipo) return res.status(400).json({ error: 'tmdb_id y tipo requeridos' });
 
+    const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const jfKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+
     const filtro = tipo === 'tv' ? 'Series' : 'Movie';
-    const { data } = await axios.get(`${config.jellyfin.url}/Items`, {
+    const { data } = await axios.get(`${jfUrl}/Items`, {
       params: {
         IncludeItemTypes: filtro,
         Recursive: true,
         Limit: 1,
         Fields: 'ProviderIds,Path',
       },
-      headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+      headers: { 'X-MediaBrowser-Token': jfKey },
       timeout: 5000,
     });
 
@@ -128,7 +132,7 @@ router.get('/reproducir', autenticar, async (req, res) => {
 
     res.json({
       disponible: true,
-      url: `${config.jellyfin.url}/web/#/details?id=${item.Id}`,
+      url: `${jfUrl}/web/#/details?id=${item.Id}`,
       item_id: item.Id,
       nombre: item.Name,
     });
@@ -153,12 +157,15 @@ router.get('/en-jellyfin', autenticar, async (req, res) => {
     const { tmdb_id, tipo } = req.query;
     if (!tmdb_id || !tipo) return res.json({ existe: false });
 
+    const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const jfKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+
     const filtro = tipo === 'tv' ? 'Series' : 'Movie';
     const provedores = tipo === 'tv'
       ? 'TvdbId,ImdbId'
       : 'TmdbId,ImdbId';
 
-    const { data } = await axios.get(`${config.jellyfin.url}/Items`, {
+    const { data } = await axios.get(`${jfUrl}/Items`, {
       params: {
         IncludeItemTypes: filtro,
         Recursive: true,
@@ -166,7 +173,7 @@ router.get('/en-jellyfin', autenticar, async (req, res) => {
         SearchTerm: tmdb_id,
         Fields: 'ProviderIds',
       },
-      headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+      headers: { 'X-MediaBrowser-Token': jfKey },
       timeout: 5000,
     });
 
@@ -197,11 +204,13 @@ router.get('/:tipo/:tmdbId', autenticar, async (req, res) => {
 
 router.get('/biblioteca/carpetas', autenticar, async (req, res) => {
   try {
-    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
     if (!baseUrl) return res.status(400).json({ error: 'JELLYFIN_URL no configurada' });
+    if (!apiKey) return res.status(400).json({ error: 'JELLYFIN_API_KEY no configurada' });
 
     const { data } = await axios.get(`${baseUrl}/Library/MediaFolders`, {
-      headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+      headers: { 'X-MediaBrowser-Token': apiKey },
       timeout: 5000,
     });
     res.json(data.Items || []);
@@ -215,7 +224,8 @@ router.get('/biblioteca/carpetas', autenticar, async (req, res) => {
 
 router.get('/biblioteca/items', autenticar, async (req, res) => {
   try {
-    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
     if (!baseUrl) return res.status(400).json({ error: 'JELLYFIN_URL no configurada' });
 
     const jellyfinId = req.usuario.jellyfin_id;
@@ -233,7 +243,7 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
 
     const { data } = await axios.get(`${baseUrl}/Users/${jellyfinId}/Items`, {
       params,
-      headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+      headers: { 'X-MediaBrowser-Token': apiKey },
       timeout: 8000,
     });
     res.json({ items: data.Items || [], total: data.TotalRecordCount || 0 });
@@ -246,14 +256,15 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
 
 router.get('/imagen/:itemId', autenticar, async (req, res) => {
   try {
-    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
     if (!baseUrl) return res.status(400).json({ error: 'JELLYFIN_URL no configurada' });
 
     const { itemId } = req.params;
     const { width } = req.query;
     const response = await axios.get(`${baseUrl}/Items/${itemId}/Images/Primary`, {
       params: { width: width || 300, quality: 90, fillHeight: 450 },
-      headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+      headers: { 'X-MediaBrowser-Token': apiKey },
       responseType: 'stream',
       timeout: 5000,
     });
