@@ -374,6 +374,31 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
   }
 });
 
+router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res) => {
+  try {
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+    if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
+
+    const itemId = req.params.itemId;
+    const userId = req.usuario.jellyfin_id;
+
+    const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/master.m3u8`);
+    jfUrl.searchParams.set('api_key', apiKey);
+    jfUrl.searchParams.set('UserId', userId);
+    jfUrl.searchParams.set('MediaSourceId', itemId);
+    jfUrl.searchParams.set('RequireAvc', 'true');
+    jfUrl.searchParams.set('DeviceId', 'JorchFlix');
+    if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
+
+    res.redirect(jfUrl.toString());
+  } catch (err) {
+    console.error('Error en HLS:', err.message);
+    res.status(502).json({ error: 'Error al obtener HLS de Jellyfin' });
+  }
+});
+
 router.get('/subtitulos/:itemId/:subIndex', verificarTokenDesdeQuery, async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
