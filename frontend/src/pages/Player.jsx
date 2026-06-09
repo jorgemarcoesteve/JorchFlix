@@ -220,6 +220,14 @@ export default function Player() {
     v.src = `/api/media/stream-audio/${id}?${params.toString()}`;
     setModoRemux(true);
     v.load();
+    setTimeout(() => {
+      const v2 = videoRef.current;
+      if (v2 && v2.networkState === v2.NETWORK_NO_SOURCE && info?.jellyfinDirectUrl) {
+        console.log('Fallo proxy audio, usando directo Jellyfin');
+        v2.src = `${info.jellyfinDirectUrl}&Static=false&AudioStreamIndex=${idx}`;
+        v2.load();
+      }
+    }, 3000);
   };
 
   const cambiarSub = (idx) => {
@@ -364,7 +372,7 @@ export default function Player() {
         >
           {info.pistas.subtitulos.map((s) => (
             <track key={s.index} kind="subtitles"
-              src={`/api/media/subtitulos/${id}/${s.index}?token=${token}`}
+              src={`/api/media/subtitulos/${id}/${s.index}?token=${token}${info.mediaSourceId ? `&MediaSourceId=${info.mediaSourceId}` : ''}`}
               srcLang={s.language || 'und'}
               label={s.title || s.language}
               default={subSel === s.index} />
