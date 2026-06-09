@@ -18,14 +18,18 @@ export default function Player() {
   const [audioSel, setAudioSel] = useState(null);
   const [subSel, setSubSel] = useState(null);
   const [mostrarPistas, setMostrarPistas] = useState(false);
+  const [controlesVisibles, setControlesVisibles] = useState(true);
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
+  const hideTimerRef = useRef(null);
+  const playerRef = useRef(null);
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
       .then(({ data }) => {
         setInfo(data);
         setCargando(false);
+        if (data.runtimeTicks) setDuration(data.runtimeTicks / 10000000);
         if (data.pistas?.audio?.length > 0) {
           const def = data.pistas.audio.find((a) => a.isDefault) || data.pistas.audio[0];
           setAudioSel(def.index);
@@ -75,6 +79,29 @@ export default function Player() {
     };
   }, [info, reportarProgreso]);
 
+  useEffect(() => {
+    const mostrar = () => {
+      setControlesVisibles(true);
+      document.body.style.cursor = '';
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => {
+        if (!videoRef.current?.paused) {
+          setControlesVisibles(false);
+          document.body.style.cursor = 'none';
+        }
+      }, 3000);
+    };
+    mostrar();
+    window.addEventListener('mousemove', mostrar);
+    window.addEventListener('keydown', mostrar);
+    return () => {
+      clearTimeout(hideTimerRef.current);
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', mostrar);
+      window.removeEventListener('keydown', mostrar);
+    };
+  }, [info]);
+
   const token = localStorage.getItem('jf_token');
 
   const construirUrlStream = () => {
@@ -96,10 +123,7 @@ export default function Player() {
   };
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-      setDuration(videoRef.current.duration || 0);
-    }
+    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
   };
 
   const handleSeek = (e) => {
@@ -176,7 +200,7 @@ export default function Player() {
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      <div className="flex items-center gap-3 px-4 py-3 bg-black/80 z-10">
+      <div className={`flex items-center gap-3 px-4 py-3 bg-black/80 z-10 transition-opacity duration-300 ${controlesVisibles ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <button onClick={() => navigate(-1)} className="text-white/70 hover:text-white transition-colors">
           <FiArrowLeft size={22} />
         </button>
@@ -256,7 +280,6 @@ export default function Player() {
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            setDuration(v.duration || 0);
             if (info?.resumeSeconds > 1) {
               v.currentTime = info.resumeSeconds;
               setReanudando(true);
@@ -298,7 +321,7 @@ export default function Player() {
         )}
       </div>
 
-      <div className="px-4 py-3 bg-black/90">
+      <div className={`px-4 py-3 bg-black/90 transition-opacity duration-300 ${controlesVisibles ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className="flex items-center gap-3 mb-2">
           <span className="text-white/60 text-xs font-mono min-w-[4rem]">{fmt(currentTime)}</span>
           <input type="range" min="0" max={duration || 1} step="0.1" value={currentTime}
@@ -330,7 +353,7 @@ export default function Player() {
       </div>
 
       {info.overview && (
-        <div className="px-4 py-2 bg-black/80 border-t border-white/5">
+        <div className={`px-4 py-2 bg-black/80 border-t border-white/5 transition-opacity duration-300 ${controlesVisibles ? 'opacity-100' : 'opacity-0'}`}>
           <p className="text-white/40 text-xs line-clamp-2">{info.overview}</p>
         </div>
       )}
