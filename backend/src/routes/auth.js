@@ -19,6 +19,14 @@ router.post('/login', async (req, res) => {
 
     console.log(`Autenticando en Jellyfin: ${jfUrl}/Users/AuthenticateByName`);
 
+    // Verify Jellyfin connectivity first
+    try {
+      await axios.get(`${jfUrl}/System/Info`, { timeout: 5000 });
+    } catch (e) {
+      console.error('Jellyfin no responde en', jfUrl, e.message);
+      return res.status(500).json({ error: `No se puede conectar a Jellyfin en ${jfUrl}` });
+    }
+
     const respuesta = await axios.post(`${jfUrl}/Users/AuthenticateByName`, {
       Username: usuario,
       Pw: contrasena,
