@@ -17,9 +17,9 @@ router.post('/login', async (req, res) => {
   try {
     const jfUrl = config.jellyfin.url?.replace(/\/+$/, '');
 
-    console.log(`Autenticando en Jellyfin: ${jfUrl}/Users/authenticatebyname`);
+    console.log(`Autenticando en Jellyfin: ${jfUrl}/Users/AuthenticateByName`);
 
-    const respuesta = await axios.post(`${jfUrl}/Users/authenticatebyname`, {
+    const respuesta = await axios.post(`${jfUrl}/Users/AuthenticateByName`, {
       Username: usuario,
       Pw: contrasena,
     }, {
