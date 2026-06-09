@@ -255,8 +255,9 @@ router.get('/reproducir-directo/:itemId', autenticar, async (req, res) => {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
     const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+    if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
-    const { data } = await axios.get(`${baseUrl}/Items/${req.params.itemId}`, {
+    const { data } = await axios.get(`${baseUrl}/Users/${req.usuario.jellyfin_id}/Items/${req.params.itemId}`, {
       params: { Fields: 'Path' },
       headers: { 'X-MediaBrowser-Token': apiKey },
       timeout: 5000,
@@ -266,7 +267,8 @@ router.get('/reproducir-directo/:itemId', autenticar, async (req, res) => {
       url: `${baseUrl}/web/#/details?id=${data.Id}`,
       nombre: data.Name,
     });
-  } catch {
+  } catch (err) {
+    console.error('Error al buscar item para reproducir:', err.response?.status, err.message);
     res.status(404).json({ error: 'Item no encontrado' });
   }
 });
