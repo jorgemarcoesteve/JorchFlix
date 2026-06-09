@@ -39,11 +39,10 @@ export default function Player() {
   const [subSel, setSubSel] = useState(null);
   const [mostrarPistas, setMostrarPistas] = useState(false);
   const [controlesVisibles, setControlesVisibles] = useState(true);
-  const [streamKey, setStreamKey] = useState(0);
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
-  const streamUrlRef = useRef('');
+  const streamVerRef = useRef(0);
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -146,16 +145,25 @@ export default function Player() {
     return `/api/media/stream/${id}?${params.toString()}`;
   };
 
-  useEffect(() => {
-    streamUrlRef.current = construirUrl(null, 0);
-    setStreamKey(k => k + 1);
-  }, []);
+  const cargarSrc = (url, seekOnLoad) => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (seekOnLoad > 0) {
+      v.addEventListener('loadedmetadata', function onMeta() {
+        this.currentTime = seekOnLoad;
+        this.removeEventListener('loadedmetadata', onMeta);
+      });
+    }
+    v.src = url;
+    v.load();
+    v.play().catch(() => {});
+  };
 
-  const recargarStream = useCallback((seekTo, audioIdx) => {
-    streamUrlRef.current = construirUrl(audioIdx ?? audioSel, seekTo);
-    setCurrentTime(seekTo);
-    setStreamKey(k => k + 1);
-  }, [audioSel]);
+  useEffect(() => {
+    if (!info) return;
+    const url = construirUrl(audioSel, 0);
+    cargarSrc(url, info?.resumeSeconds > 1 ? info.resumeSeconds : 0);
+  }, [info]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -174,7 +182,8 @@ export default function Player() {
 
   const handleSeek = (e) => {
     const t = parseFloat(e.target.value);
-    recargarStream(t, audioSel);
+    cargarSrc(construirUrl(audioSel, t), t);
+    setCurrentTime(t);
     setTimeout(() => reportarProgreso(true), 100);
   };
 
@@ -201,10 +210,10 @@ export default function Player() {
   };
 
   const cambiarAudio = (idx) => {
-    const pos = videoRef.current?.currentTime || 0;
     setAudioSel(idx);
     guardarPrefs(id, { audioIndex: idx });
-    recargarStream(pos, idx);
+    const pos = videoRef.current?.currentTime || 0;
+    cargarSrc(construirUrl(idx, pos), pos);
   };
 
   const cambiarSub = (idx) => {
@@ -317,22 +326,13 @@ export default function Player() {
 
       <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center">
         <video
-          key={streamKey}
           ref={videoRef}
-          src={streamUrlRef.current}
           className="max-w-full max-h-full"
           onClick={togglePlay}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            if (streamUrlRef.current.includes('StartTimeTicks')) {
-              v.play().catch(() => {});
-            } else if (info?.resumeSeconds > 1) {
-              v.currentTime = info.resumeSeconds;
-              setReanudando(true);
-              setTimeout(() => setReanudando(false), 3000);
-            }
             if (subSel != null && subSel >= 0 && v.textTracks[subSel]) {
               v.textTracks[subSel].mode = 'showing';
             }
