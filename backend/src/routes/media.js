@@ -469,7 +469,8 @@ router.get('/hls/:itemId/segment/*', async (req, res) => {
     const itemId = req.params.itemId;
     const restPath = req.params[0];
     const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/${restPath}`);
-    Object.entries(req.query).forEach(([k, v]) => { if (k !== 'token' && k !== 'api_key') jfUrl.searchParams.set(k, v); });
+    const skipParams = new Set(['token', 'api_key', 'VideoCodec', 'AudioCodec', 'RequireAvc', 'AllowVideoStreamCopy', 'AllowAudioStreamCopy']);
+    Object.entries(req.query).forEach(([k, v]) => { if (!skipParams.has(k)) jfUrl.searchParams.set(k, v); });
     jfUrl.searchParams.set('api_key', apiKey);
 
     await proxyJellyfin(jfUrl, apiKey, res);
