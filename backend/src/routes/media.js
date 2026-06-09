@@ -442,8 +442,9 @@ router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res
           const trimmed = line.trim();
           if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) return line;
           if (/^https?:\/\//i.test(trimmed)) return line;
-          const sep = trimmed.includes('?') ? '&' : '?';
-          return `${proxyPrefix}/segment/${trimmed}${sep}token=${encodeURIComponent(token)}`;
+          const cleaned = trimmed.replace(/([?&])api_key=[^&]*&?/g, '$1').replace(/[?&]$/, '');
+          const sep = cleaned.includes('?') ? '&' : '?';
+          return `${proxyPrefix}/segment/${cleaned}${sep}token=${encodeURIComponent(token)}`;
         });
       return { body: rewritten, contentType: 'application/vnd.apple.mpegurl' };
     });
@@ -462,7 +463,8 @@ router.get('/hls/:itemId/segment/*', async (req, res) => {
     const itemId = req.params.itemId;
     const restPath = req.params[0];
     const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/${restPath}`);
-    Object.entries(req.query).forEach(([k, v]) => { if (k !== 'token') jfUrl.searchParams.set(k, v); });
+    Object.entries(req.query).forEach(([k, v]) => { if (k !== 'token' && k !== 'api_key') jfUrl.searchParams.set(k, v); });
+    jfUrl.searchParams.set('api_key', apiKey);
 
     await proxyJellyfin(jfUrl, apiKey, res);
   } catch (err) {
