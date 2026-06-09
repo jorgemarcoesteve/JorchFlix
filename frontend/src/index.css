@@ -70,7 +70,7 @@
 
   .card::before {
     content: '';
-    @apply absolute inset-0 opacity-0 transition-opacity duration-500;
+    @apply absolute inset-0 opacity-0 transition-opacity duration-500 pointer-events-none;
     background: linear-gradient(135deg, rgba(0,230,118,0.03) 0%, transparent 50%);
   }
 
