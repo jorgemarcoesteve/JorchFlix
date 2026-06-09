@@ -195,29 +195,40 @@ router.get('/:tipo/:tmdbId', autenticar, async (req, res) => {
   }
 });
 
-router.get('/biblioteca/peliculas', autenticar, async (req, res) => {
+router.get('/biblioteca/carpetas', autenticar, async (req, res) => {
   try {
-    const { data } = await axios.get(`${config.jellyfin.url}/Items`, {
-      params: { IncludeItemTypes: 'Movie', Recursive: true, Fields: 'PrimaryImageAspectRatio,Overview,PremiereDate,CommunityRating', Limit: 50 },
+    const { data } = await axios.get(`${config.jellyfin.url}/Library/MediaFolders`, {
       headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+      timeout: 5000,
     });
     res.json(data.Items || []);
   } catch (err) {
-    console.error('Error al obtener biblioteca de Jellyfin:', err.message);
-    res.status(500).json({ error: 'Error al obtener la biblioteca' });
+    console.error('Error al obtener carpetas Jellyfin:', err.message);
+    res.status(500).json({ error: 'Error al obtener las bibliotecas' });
   }
 });
 
-router.get('/biblioteca/series', autenticar, async (req, res) => {
+router.get('/biblioteca/items', autenticar, async (req, res) => {
   try {
+    const { parentId, tipo, limit, startIndex } = req.query;
+    const params = {
+      Recursive: true,
+      Fields: 'PrimaryImageAspectRatio,Overview,PremiereDate,CommunityRating,ProviderIds',
+      Limit: parseInt(limit) || 50,
+      startIndex: parseInt(startIndex) || 0,
+    };
+    if (parentId) params.ParentId = parentId;
+    if (tipo) params.IncludeItemTypes = tipo;
+
     const { data } = await axios.get(`${config.jellyfin.url}/Items`, {
-      params: { IncludeItemTypes: 'Series', Recursive: true, Fields: 'PrimaryImageAspectRatio,Overview,PremiereDate,CommunityRating', Limit: 50 },
+      params,
       headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+      timeout: 8000,
     });
-    res.json(data.Items || []);
+    res.json({ items: data.Items || [], total: data.TotalRecordCount || 0 });
   } catch (err) {
-    console.error('Error al obtener biblioteca de Jellyfin:', err.message);
-    res.status(500).json({ error: 'Error al obtener la biblioteca' });
+    console.error('Error al obtener items de Jellyfin:', err.message);
+    res.status(500).json({ error: 'Error al obtener contenido' });
   }
 });
 
