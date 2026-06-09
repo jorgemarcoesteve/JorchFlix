@@ -44,6 +44,11 @@ export default function Player() {
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
   const trackElsRef = useRef({});
+  const offsetRef = useRef(0);
+
+  function posReal(v) {
+    return (v?.currentTime || 0) + offsetRef.current;
+  }
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -81,7 +86,7 @@ export default function Player() {
     const ahora = Date.now();
     if (!forzar && ahora - ultimoReporteRef.current < 15000) return;
     ultimoReporteRef.current = ahora;
-    const posTicks = Math.floor(videoRef.current.currentTime * 10000000);
+    const posTicks = Math.floor(posReal(videoRef.current) * 10000000);
     try {
       const { data } = await api.post(`/media/reportar-progreso/${id}`, {
         positionTicks: posTicks,
@@ -137,18 +142,33 @@ export default function Player() {
   }, [info]);
 
   const token = localStorage.getItem('jf_token');
+  const streamKeyRef = useRef(0);
+
+  function construirUrl(audioIdx, seekTicks) {
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    if (audioIdx != null) params.set('AudioStreamIndex', audioIdx);
+    if (seekTicks > 0) params.set('StartTimeTicks', Math.floor(seekTicks));
+    return `/api/media/stream/${id}?${params.toString()}`;
+  }
+
+  const cargarStream = useCallback((audioIdx, seekTicks) => {
+    const v = videoRef.current;
+    if (!v) return;
+    const url = construirUrl(audioIdx, seekTicks);
+    v.src = url;
+    streamKeyRef.current += 1; // force re-check in onLoadedMetadata
+    v.load();
+    if (seekTicks > 0) {
+      setTimeout(() => { if (videoRef.current) videoRef.current.play(); }, 200);
+    }
+  }, [id]);
 
   useEffect(() => {
     if (!info) return;
     const v = videoRef.current;
     if (!v) return;
-    const params = new URLSearchParams();
-    if (token) params.set('token', token);
-    const url = `/api/media/stream/${id}?${params.toString()}`;
-    if (v.src !== url) {
-      v.src = url;
-      v.load();
-    }
+    if (!v.src) cargarStream(audioSel, info.resumeSeconds > 1 ? info.resumeSeconds * 10000000 : 0);
   }, [info]);
 
   const togglePlay = () => {
@@ -163,14 +183,16 @@ export default function Player() {
   };
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+    if (videoRef.current) setCurrentTime(posReal(videoRef.current));
+  };
+
+  const handleSeekPreview = (e) => {
+    setCurrentTime(parseFloat(e.target.value));
   };
 
   const handleSeek = (e) => {
     const t = parseFloat(e.target.value);
-    if (videoRef.current) videoRef.current.currentTime = t;
-    setCurrentTime(t);
-    setTimeout(() => reportarProgreso(true), 100);
+    cargarStream(null, Math.floor(t * 10000000));
   };
 
   const toggleMute = () => {
@@ -195,31 +217,6 @@ export default function Player() {
     }
   };
 
-  const aplicarAudio = (jfIdx) => {
-    const v = videoRef.current;
-    if (!v) { setDebug('No video ref'); return; }
-    if (!v.audioTracks) { setDebug('No audioTracks API'); return; }
-    setDebug(`audioTracks: ${v.audioTracks.length}, buscando idx ${jfIdx}`);
-    for (let i = 0; i < v.audioTracks.length; i++) {
-      setDebug(d => d + ` [${i}] lang=${v.audioTracks[i].language} label=${v.audioTracks[i].label} enabled=${v.audioTracks[i].enabled}`);
-    }
-    if (v.audioTracks.length > 0) {
-      for (const jf of info?.pistas?.audio || []) {
-        if (jf.index !== jfIdx) continue;
-        for (let i = 0; i < v.audioTracks.length; i++) {
-          const bt = v.audioTracks[i];
-          if (bt.language === jf.language && bt.label === jf.title) {
-            v.audioTracks[i].enabled = true;
-            setDebug(d => d + ` -> enabled [${i}]`);
-            return;
-          }
-        }
-      }
-      setDebug(d => d + ' -> sin match, activando primera');
-      v.audioTracks[0].enabled = true;
-    }
-  };
-
   const aplicarSub = (jfIdx) => {
     const v = videoRef.current;
     if (!v) return;
@@ -228,18 +225,12 @@ export default function Player() {
     }
     if (jfIdx >= 0) {
       const el = trackElsRef.current[jfIdx];
-      if (el?.track) {
-        el.track.mode = 'showing';
-        return;
-      }
-      for (const jf of info?.pistas?.subtitulos || []) {
-        if (jf.index !== jfIdx) continue;
-        for (let i = 0; i < v.textTracks.length; i++) {
-          const bt = v.textTracks[i];
-          if (bt.language === jf.language && bt.label === jf.title) {
-            v.textTracks[i].mode = 'showing';
-            return;
-          }
+      if (el?.track) { el.track.mode = 'showing'; return; }
+      for (let i = 0; i < v.textTracks.length; i++) {
+        const bt = v.textTracks[i];
+        if (bt.language === (info?.pistas?.subtitulos?.find(s => s.index === jfIdx)?.language)) {
+          v.textTracks[i].mode = 'showing';
+          return;
         }
       }
     }
@@ -248,7 +239,7 @@ export default function Player() {
   const cambiarAudio = (idx) => {
     setAudioSel(idx);
     guardarPrefs(id, { audioIndex: idx });
-    aplicarAudio(idx);
+    cargarStream(idx, Math.floor(posReal(videoRef.current)));
   };
 
   const cambiarSub = (idx) => {
@@ -361,10 +352,15 @@ export default function Player() {
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            aplicarAudio(audioSel);
+            const match = v.src.match(/StartTimeTicks=(\d+)/);
+            if (match) {
+              offsetRef.current = parseInt(match[1]) / 10000000;
+              setCurrentTime(offsetRef.current);
+            } else {
+              offsetRef.current = 0;
+            }
             aplicarSub(subSel);
-            if (info?.resumeSeconds > 1) {
-              v.currentTime = info.resumeSeconds;
+            if (offsetRef.current > 1) {
               setReanudando(true);
               setTimeout(() => setReanudando(false), 3000);
             }
@@ -404,7 +400,9 @@ export default function Player() {
         <div className="flex items-center gap-3 mb-2">
           <span className="text-white/60 text-xs font-mono min-w-[4rem]">{fmt(currentTime)}</span>
           <input type="range" min="0" max={duration || 1} step="0.1" value={currentTime}
-            onChange={handleSeek}
+            onChange={handleSeekPreview}
+            onMouseUp={handleSeek}
+            onTouchEnd={handleSeek}
             className="flex-1 h-1.5 appearance-none bg-white/20 rounded-full cursor-pointer
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
               [&::-webkit-slider-thumb]:bg-jf-verde [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md" />
