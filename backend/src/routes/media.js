@@ -5,7 +5,6 @@ const http = require('http');
 const https = require('https');
 const { URL } = require('url');
 const config = require('../config');
-const SettingsService = require('../services/settings');
 const { getDatabase } = require('../config/database');
 const { autenticar } = require('../middleware/auth');
 const tmdb = require('../services/tmdb');
@@ -113,8 +112,8 @@ router.get('/reproducir', autenticar, async (req, res) => {
     const { tmdb_id, tipo } = req.query;
     if (!tmdb_id || !tipo) return res.status(400).json({ error: 'tmdb_id y tipo requeridos' });
 
-    const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const jfKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const jfUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const jfKey = config.jellyfin.apiKey;
 
     const filtro = tipo === 'tv' ? 'Series' : 'Movie';
     const { data } = await axios.get(`${jfUrl}/Items`, {
@@ -162,8 +161,8 @@ router.get('/en-jellyfin', autenticar, async (req, res) => {
     const { tmdb_id, tipo } = req.query;
     if (!tmdb_id || !tipo) return res.json({ existe: false });
 
-    const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const jfKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const jfUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const jfKey = config.jellyfin.apiKey;
 
     const filtro = tipo === 'tv' ? 'Series' : 'Movie';
     const provedores = tipo === 'tv'
@@ -195,8 +194,8 @@ router.get('/en-jellyfin', autenticar, async (req, res) => {
 
 router.get('/biblioteca/carpetas', autenticar, async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl) return res.status(400).json({ error: 'JELLYFIN_URL no configurada' });
     if (!apiKey) return res.status(400).json({ error: 'JELLYFIN_API_KEY no configurada' });
 
@@ -215,8 +214,8 @@ router.get('/biblioteca/carpetas', autenticar, async (req, res) => {
 
 router.get('/biblioteca/items', autenticar, async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl) return res.status(400).json({ error: 'JELLYFIN_URL no configurada' });
 
     const jellyfinId = req.usuario.jellyfin_id;
@@ -257,8 +256,8 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
 
 router.get('/player-info/:itemId', autenticar, async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
     if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
@@ -336,8 +335,8 @@ function verificarTokenDesdeQuery(req, res, next) {
 
 router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
     if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
@@ -435,8 +434,8 @@ function proxyJellyfin(jfUrl, apiKey, res, transformBody) {
 
 router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
     if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
@@ -480,8 +479,8 @@ router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res
 
 router.get('/hls/:itemId/segment/*', async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
 
     const itemId = req.params.itemId;
@@ -500,8 +499,8 @@ router.get('/hls/:itemId/segment/*', async (req, res) => {
 
 router.get('/subtitulos/:itemId/:subIndex', verificarTokenDesdeQuery, async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
     if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
@@ -539,8 +538,8 @@ router.get('/subtitulos/:itemId/:subIndex', verificarTokenDesdeQuery, async (req
 
 router.get('/reproducir-directo/:itemId', autenticar, async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
     if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
@@ -584,8 +583,8 @@ router.post('/reportar-progreso/:itemId', autenticar, async (req, res) => {
 
 router.post('/marcar-visto/:itemId', autenticar, async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
     if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
@@ -610,8 +609,8 @@ router.post('/marcar-visto/:itemId', autenticar, async (req, res) => {
 
 router.get('/imagen/:itemId', async (req, res) => {
   try {
-    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
 
     const { itemId } = req.params;

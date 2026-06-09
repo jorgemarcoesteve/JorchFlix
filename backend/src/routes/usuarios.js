@@ -1,7 +1,6 @@
 const { Router } = require('express');
 const axios = require('axios');
 const config = require('../config');
-const SettingsService = require('../services/settings');
 const { getDatabase } = require('../config/database');
 const { autenticar, esAdmin } = require('../middleware/auth');
 
@@ -27,8 +26,8 @@ router.post('/', autenticar, esAdmin, async (req, res) => {
   }
 
   try {
-    const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const jfKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const jfUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const jfKey = config.jellyfin.apiKey;
 
     const respuesta = await axios.post(`${jfUrl}/Users/New`, {
       Name: nombre_usuario,
@@ -59,8 +58,8 @@ router.delete('/:id', autenticar, esAdmin, async (req, res) => {
   }
 
   try {
-    const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-    const jfKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    const jfUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const jfKey = config.jellyfin.apiKey;
     await axios.delete(`${jfUrl}/Users/${usuario.jellyfin_id}`, {
       headers: { 'X-MediaBrowser-Token': jfKey },
     });

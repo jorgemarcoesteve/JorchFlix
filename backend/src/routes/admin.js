@@ -52,8 +52,8 @@ router.get('/health', autenticar, esAdmin, async (req, res) => {
 
   const [jellyfin, radarr, sonarr, tmdb] = await Promise.all([
     (async () => {
-      const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
-      const jfKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+      const jfUrl = config.jellyfin.url?.replace(/\/+$/, '');
+      const jfKey = config.jellyfin.apiKey;
       if (!jfUrl || !jfKey) return { estado: 'no configurado' };
       try {
         await axios.get(`${jfUrl}/System/Info`, {
