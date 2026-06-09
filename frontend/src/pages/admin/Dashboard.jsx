@@ -1,19 +1,30 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiUsers, FiList, FiSettings, FiDollarSign, FiAlertCircle, FiCheckCircle, FiActivity } from 'react-icons/fi';
+import { FiUsers, FiList, FiSettings, FiDollarSign, FiAlertCircle, FiCheckCircle, FiActivity, FiWifi } from 'react-icons/fi';
 import api from '../../services/api';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
+  const [health, setHealth] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    api.get('/admin/stats')
-      .then(({ data }) => setStats(data))
-      .catch(() => {})
-      .finally(() => setCargando(false));
+    Promise.all([
+      api.get('/admin/stats'),
+      api.get('/admin/health'),
+    ]).then(([s, h]) => {
+      setStats(s.data);
+      setHealth(h.data);
+    }).catch(() => {})
+    .finally(() => setCargando(false));
   }, []);
+
+  const serviciosConfigurados = health
+    ? Object.values(health).filter((s) => s.estado !== 'no configurado').length
+    : 0;
+  const mostrarWizard = serviciosConfigurados === 0;
 
   const cards = [
     { titulo: 'Pendientes', valor: stats?.pendientes || 0, icon: FiAlertCircle, color: 'text-yellow-500 bg-yellow-500/10', link: '/admin/requests' },
@@ -27,6 +38,24 @@ export default function AdminDashboard() {
   return (
     <div className="max-w-6xl mx-auto px-4">
       <h1 className="text-3xl font-extrabold text-white mb-8">Panel de administración</h1>
+
+      {mostrarWizard && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          className="card p-6 mb-6 border-jf-verde/30 bg-gradient-to-r from-jf-verde/5 to-transparent">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-jf-verde/20">
+              <FiWifi className="text-jf-verde" size={24} />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-white">¡Bienvenido a JorchFlix!</h2>
+              <p className="text-sm text-jf-muted mt-1">Configura los servicios para empezar a funcionar. Necesitas al menos TMDB + Radarr o Sonarr.</p>
+            </div>
+            <button onClick={() => navigate('/admin/settings')} className="btn-primary">
+              Ir a configuración
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         {cargando ? (

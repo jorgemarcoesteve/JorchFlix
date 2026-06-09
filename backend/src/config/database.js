@@ -116,6 +116,43 @@ function inicializarEsquema() {
   try {
     db.run("ALTER TABLE usuarios ADD COLUMN email TEXT");
   } catch (e) {}
+
+  db.run(`CREATE TABLE IF NOT EXISTS issues (
+    id TEXT PRIMARY KEY,
+    usuario_id TEXT NOT NULL,
+    peticion_id TEXT,
+    tipo TEXT NOT NULL CHECK(tipo IN ('playback', 'metadata', 'other')),
+    descripcion TEXT NOT NULL,
+    resuelto INTEGER NOT NULL DEFAULT 0,
+    creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+    FOREIGN KEY (peticion_id) REFERENCES peticiones(id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS votos (
+    id TEXT PRIMARY KEY,
+    usuario_id TEXT NOT NULL,
+    peticion_id TEXT NOT NULL,
+    creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(usuario_id, peticion_id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+    FOREIGN KEY (peticion_id) REFERENCES peticiones(id)
+  )`);
+
+  try {
+    db.run("ALTER TABLE usuarios ADD COLUMN peticiones_maximas INTEGER NOT NULL DEFAULT 0");
+  } catch (e) {}
+
+  try {
+    db.run("ALTER TABLE configuracion ADD COLUMN defecto TEXT");
+  } catch (e) {}
+
+  if (!db.get("SELECT valor FROM configuracion WHERE clave = 'jfc_costo'")) {
+    db.run("INSERT INTO configuracion (clave, valor) VALUES ('jfc_costo', '1')");
+  }
+  if (!db.get("SELECT valor FROM configuracion WHERE clave = 'max_peticiones_pendientes'")) {
+    db.run("INSERT INTO configuracion (clave, valor) VALUES ('max_peticiones_pendientes', '0')");
+  }
 }
 
 function guardar() {

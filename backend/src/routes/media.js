@@ -102,6 +102,41 @@ router.get('/discover', autenticar, async (req, res) => {
   }
 });
 
+router.get('/reproducir', autenticar, async (req, res) => {
+  try {
+    const { tmdb_id, tipo } = req.query;
+    if (!tmdb_id || !tipo) return res.status(400).json({ error: 'tmdb_id y tipo requeridos' });
+
+    const filtro = tipo === 'tv' ? 'Series' : 'Movie';
+    const { data } = await axios.get(`${config.jellyfin.url}/Items`, {
+      params: {
+        IncludeItemTypes: filtro,
+        Recursive: true,
+        Limit: 1,
+        Fields: 'ProviderIds,Path',
+      },
+      headers: { 'X-MediaBrowser-Token': config.jellyfin.apiKey },
+      timeout: 5000,
+    });
+
+    const item = (data.Items || []).find((i) => {
+      const ids = i.ProviderIds || {};
+      return String(ids.TmdbId) === String(tmdb_id);
+    });
+
+    if (!item) return res.json({ disponible: false });
+
+    res.json({
+      disponible: true,
+      url: `${config.jellyfin.url}/web/#/details?id=${item.Id}`,
+      item_id: item.Id,
+      nombre: item.Name,
+    });
+  } catch (err) {
+    res.json({ disponible: false });
+  }
+});
+
 router.get('/generos', autenticar, async (req, res) => {
   try {
     const { tipo } = req.query;

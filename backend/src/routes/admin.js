@@ -108,6 +108,51 @@ router.put('/usuarios/:id/rol', autenticar, esAdmin, (req, res) => {
   }
 });
 
+router.post('/peticiones/lote', autenticar, esAdmin, async (req, res) => {
+  try {
+    const { ids, accion } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Lista de IDs requerida' });
+    }
+    if (!['aprobar', 'rechazar'].includes(accion)) {
+      return res.status(400).json({ error: 'Acción debe ser aprobar o rechazar' });
+    }
+
+    const db = getDatabase();
+    const radarrService = require('../services/radarr');
+    const sonarrService = require('../services/sonarr');
+    let ok = 0, fail = 0;
+
+    for (const peticionId of ids) {
+      try {
+        const peticion = db.get('SELECT * FROM peticiones WHERE id = ?', [peticionId]);
+        if (!peticion || peticion.estado !== 'pending') { fail++; continue; }
+
+        if (accion === 'aprobar') {
+          if (peticion.tipo === 'movie') {
+            await radarrService.enviarAPelicula(peticion.tmdb_id, peticion.titulo);
+          } else {
+            await sonarrService.enviarASerie(peticion.tmdb_id, peticion.titulo);
+          }
+          db.run("UPDATE peticiones SET estado = 'completed', admin_id = ?, actualizado_en = datetime('now') WHERE id = ?",
+            [req.usuario.id, peticion.id]);
+        } else {
+          db.run("UPDATE peticiones SET estado = 'rejected', admin_id = ?, actualizado_en = datetime('now') WHERE id = ?",
+            [req.usuario.id, peticion.id]);
+          db.run('UPDATE usuarios SET monedas = monedas + 1 WHERE id = ?', [peticion.usuario_id]);
+        }
+        ok++;
+      } catch { fail++; }
+    }
+
+    auditLog(db, req.usuario.id, `lote_${accion}`, `${ok} ok, ${fail} fail`);
+    res.json({ ok, fail, mensaje: `${ok} procesadas, ${fail} errores` });
+  } catch (err) {
+    console.error('Error en lote:', err.message);
+    res.status(500).json({ error: 'Error al procesar lote' });
+  }
+});
+
 router.get('/audit-log', autenticar, esAdmin, (req, res) => {
   try {
     const db = getDatabase();

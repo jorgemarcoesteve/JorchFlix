@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { FiClock, FiCalendar, FiStar, FiThumbsUp, FiPlay, FiInfo, FiCheck } from 'react-icons/fi';
+import { FiClock, FiCalendar, FiStar, FiThumbsUp, FiPlay, FiInfo, FiCheck, FiExternalLink, FiFlag } from 'react-icons/fi';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { MediaCard } from '../components/MediaCard';
@@ -16,8 +16,12 @@ export default function Detail() {
   const [solicitando, setSolicitando] = useState(false);
   const [estadoPeticion, setEstadoPeticion] = useState(null);
   const [enJellyfin, setEnJellyfin] = useState(false);
+  const [playUrl, setPlayUrl] = useState(null);
   const [temporadasSeleccionadas, setTemporadasSeleccionadas] = useState([]);
   const [mostrarSelectorTemp, setMostrarSelectorTemp] = useState(false);
+  const [mostrarIssue, setMostrarIssue] = useState(false);
+  const [issueTipo, setIssueTipo] = useState('playback');
+  const [issueDesc, setIssueDesc] = useState('');
 
   useEffect(() => {
     const cargar = async () => {
@@ -46,6 +50,10 @@ export default function Detail() {
 
     api.get('/media/en-jellyfin', { params: { tmdb_id: id, tipo } }).then(({ data }) => {
       if (data.existe) setEnJellyfin(true);
+    }).catch(() => {});
+
+    api.get('/media/reproducir', { params: { tmdb_id: id, tipo } }).then(({ data }) => {
+      if (data.disponible) setPlayUrl(data.url);
     }).catch(() => {});
   }, [media, tipo, id]);
 
@@ -256,7 +264,13 @@ export default function Detail() {
               )}
 
               <div className="flex flex-wrap gap-3 mt-8">
-                {!estadoPeticion && (
+                {playUrl ? (
+                  <a href={playUrl} target="_blank" rel="noopener noreferrer"
+                    className="btn-primary gap-2 text-base px-8 py-3.5">
+                    <FiPlay size={20} />
+                    Reproducir en Jellyfin
+                  </a>
+                ) : !estadoPeticion ? (
                   <button
                     onClick={() => {
                       if (temporadas.length > 0 && !mostrarSelectorTemp) {
@@ -275,7 +289,7 @@ export default function Detail() {
                         ? `Confirmar (${usuario?.monedas || 0} JFC)`
                         : `Solicitar (${usuario?.monedas || 0} JFC)`}
                   </button>
-                )}
+                ) : null}
 
                 {trailer && (
                   <a href={`https://youtube.com/watch?v=${trailer.key}`} target="_blank" rel="noopener noreferrer"
@@ -284,7 +298,37 @@ export default function Detail() {
                     Ver tráiler
                   </a>
                 )}
+
+                <button onClick={() => setMostrarIssue(!mostrarIssue)}
+                  className="btn-secondary gap-2 text-base px-4 py-3.5">
+                  <FiFlag size={18} />
+                </button>
               </div>
+
+              {mostrarIssue && (
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 p-4 bg-jf-fondo-alt rounded-2xl border border-jf-borde-claro max-w-md">
+                  <p className="text-sm font-medium text-white mb-3">Reportar problema</p>
+                  <select value={issueTipo} onChange={(e) => setIssueTipo(e.target.value)}
+                    className="input text-sm mb-2">
+                    <option value="playback">Problema de reproducción</option>
+                    <option value="metadata">Error en metadatos</option>
+                    <option value="other">Otro</option>
+                  </select>
+                  <textarea value={issueDesc} onChange={(e) => setIssueDesc(e.target.value)}
+                    placeholder="Describe el problema..." rows={2}
+                    className="input text-sm mb-2 resize-none" />
+                  <button onClick={async () => {
+                    if (!issueDesc) return toast.error('Describe el problema');
+                    try {
+                      await api.post('/issues', { tipo: issueTipo, descripcion: issueDesc });
+                      toast.success('Reporte enviado');
+                      setMostrarIssue(false);
+                      setIssueDesc('');
+                    } catch { toast.error('Error al enviar reporte'); }
+                  }} className="btn-primary !py-1.5 text-sm">Enviar reporte</button>
+                </motion.div>
+              )}
             </motion.div>
 
             {reparto.length > 0 && (

@@ -13,13 +13,30 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let refrescando = null;
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('jf_token');
-      localStorage.removeItem('jf_usuario');
-      window.location.href = '/login';
+  async (error) => {
+    if (error.response?.status === 401 && !error.config._retry) {
+      error.config._retry = true;
+      try {
+        if (!refrescando) {
+          refrescando = api.post('/auth/refresh').then(({ data }) => {
+            localStorage.setItem('jf_token', data.token);
+            return data.token;
+          });
+        }
+        const token = await refrescando;
+        refrescando = null;
+        error.config.headers.Authorization = `Bearer ${token}`;
+        return api(error.config);
+      } catch {
+        refrescando = null;
+        localStorage.removeItem('jf_token');
+        localStorage.removeItem('jf_usuario');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

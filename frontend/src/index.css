@@ -35,10 +35,6 @@
     background: linear-gradient(135deg, #0A0A0A 0%, #1B5E20 50%, #0A0A0A 100%);
   }
 
-  .card-gradient {
-    background: linear-gradient(180deg, rgba(26,26,26,0.8) 0%, rgba(26,26,26,1) 100%);
-  }
-
   .btn {
     @apply relative inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold
            transition-all duration-300 transform overflow-hidden

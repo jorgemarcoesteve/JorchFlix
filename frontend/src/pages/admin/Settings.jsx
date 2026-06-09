@@ -211,6 +211,25 @@ export default function AdminSettings() {
           </div>
 
           <div className="card p-5 mb-4">
+            <h3 className="text-lg font-bold text-white mb-4">Economía y límites</h3>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-jf-muted mb-1">Costo por petición (JFC)</label>
+                <input type="number" min="1" value={settings.jfc_costo || '1'}
+                  onChange={(e) => actualizar('jfc_costo', e.target.value)}
+                  className="input text-sm w-24" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-jf-muted mb-1">Máx. pendientes por usuario</label>
+                <input type="number" min="0" value={settings.max_peticiones_pendientes || '0'}
+                  onChange={(e) => actualizar('max_peticiones_pendientes', e.target.value)}
+                  className="input text-sm w-24" />
+                <p className="text-[10px] text-jf-muted mt-0.5">0 = sin límite</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-5 mb-4">
             <h3 className="text-lg font-bold text-white mb-4">Auto-aprobación</h3>
             <div className="grid md:grid-cols-2 gap-4">
               <label className="flex items-center gap-3 cursor-pointer">

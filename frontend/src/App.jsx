@@ -9,6 +9,8 @@ import Detail from './pages/Detail';
 import Search from './pages/Search';
 import MyRequests from './pages/MyRequests';
 import Profile from './pages/Profile';
+import Library from './pages/Library';
+import Issues from './pages/Issues';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminRequests from './pages/admin/Requests';
 import AdminUsers from './pages/admin/Users';
@@ -33,6 +35,8 @@ export default function App() {
                   <Route path="/search" element={<Search />} />
                   <Route path="/my-requests" element={<MyRequests />} />
                   <Route path="/profile" element={<Profile />} />
+                  <Route path="/library" element={<Library />} />
+                  <Route path="/issues" element={<Issues />} />
 
                   <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                   <Route path="/admin/requests" element={<AdminRoute><AdminRequests /></AdminRoute>} />

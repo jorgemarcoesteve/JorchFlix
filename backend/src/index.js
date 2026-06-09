@@ -34,6 +34,8 @@ const monedasRoutes = require('./routes/monedas');
 const configRoutes = require('./routes/configuracion');
 const notificacionesRoutes = require('./routes/notificaciones');
 const adminRoutes = require('./routes/admin');
+const votosRoutes = require('./routes/votos');
+const issuesRoutes = require('./routes/issues');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuarioRoutes);
@@ -43,6 +45,8 @@ app.use('/api/monedas', monedasRoutes);
 app.use('/api/configuracion', configRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/votos', votosRoutes);
+app.use('/api/issues', issuesRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

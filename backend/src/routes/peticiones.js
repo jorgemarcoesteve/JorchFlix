@@ -54,6 +54,14 @@ router.post('/', autenticar, async (req, res) => {
 
   const db = getDatabase();
 
+  const costo = parseInt(db.get("SELECT valor FROM configuracion WHERE clave = 'jfc_costo'")?.valor || '1');
+  const maxPendientes = parseInt(db.get("SELECT valor FROM configuracion WHERE clave = 'max_peticiones_pendientes'")?.valor || '0');
+  const pendientesActuales = db.get("SELECT COUNT(*) as count FROM peticiones WHERE usuario_id = ? AND estado = 'pending'", [req.usuario.id])?.count || 0;
+
+  if (maxPendientes > 0 && pendientesActuales >= maxPendientes) {
+    return res.status(403).json({ error: `Límite de ${maxPendientes} peticiones pendientes alcanzado. Espera a que el admin procese algunas.` });
+  }
+
   const duplicado = db.get(
     'SELECT id, estado FROM peticiones WHERE tmdb_id = ? AND tipo = ? AND usuario_id = ? AND estado != ?',
     [tmdb_id, tipo, req.usuario.id, 'rejected']
@@ -67,8 +75,8 @@ router.post('/', autenticar, async (req, res) => {
     });
   }
 
-  if (req.usuario.monedas < 1) {
-    return res.status(403).json({ error: 'No tienes suficientes JFC. Solicita al administrador que te otorgue más.' });
+  if (req.usuario.monedas < costo) {
+    return res.status(403).json({ error: `Necesitas ${costo} JFC. Solicita al administrador que te otorgue más.` });
   }
 
   const id = uuidv4();
@@ -79,11 +87,11 @@ router.post('/', autenticar, async (req, res) => {
     [id, req.usuario.id, tipo, tmdb_id, titulo, descripcion || '', poster_path || '', temporadas ? JSON.stringify(temporadas) : null]
   );
 
-  db.run('UPDATE usuarios SET monedas = monedas - 1 WHERE id = ?', [req.usuario.id]);
+  db.run('UPDATE usuarios SET monedas = monedas - ? WHERE id = ?', [costo, req.usuario.id]);
 
   db.run(
     'INSERT INTO transacciones (id, usuario_id, cantidad, tipo, descripcion, peticion_id) VALUES (?, ?, ?, ?, ?, ?)',
-    [uuidv4(), req.usuario.id, -1, 'request', `Petición: ${titulo}`, peticionId]
+    [uuidv4(), req.usuario.id, -costo, 'request', `Petición: ${titulo}`, peticionId]
   );
 
   const admins = db.all('SELECT id FROM usuarios WHERE es_admin = 1');

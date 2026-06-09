@@ -89,4 +89,13 @@ router.get('/me', autenticar, (req, res) => {
   });
 });
 
+router.post('/refresh', autenticar, (req, res) => {
+  const token = jwt.sign(
+    { id: req.usuario.id, jellyfin_id: req.usuario.jellyfin_id },
+    config.jwtSecret,
+    { expiresIn: '7d' }
+  );
+  res.json({ token });
+});
+
 module.exports = router;
