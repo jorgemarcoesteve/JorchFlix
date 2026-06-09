@@ -339,62 +339,37 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
     const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+    if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
-    const jfUrl = new URL(`${baseUrl}/Videos/${req.params.itemId}/stream`);
+    const itemId = req.params.itemId;
+    const userId = req.usuario.jellyfin_id;
+
+    const playbackInfo = await axios.get(`${baseUrl}/Items/${itemId}/PlaybackInfo`, {
+      params: { UserId: userId, api_key: apiKey },
+      headers: { 'X-MediaBrowser-Token': apiKey },
+      timeout: 10000,
+    });
+
+    const mediaSources = playbackInfo.data?.MediaSources || [];
+    const mediaSource = mediaSources[0];
+    if (!mediaSource) return res.status(404).json({ error: 'No hay fuentes de video disponibles' });
+
+    const mediaSourceId = mediaSource.Id;
+
+    const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/stream`);
     jfUrl.searchParams.set('api_key', apiKey);
+    jfUrl.searchParams.set('UserId', userId);
+    jfUrl.searchParams.set('MediaSourceId', mediaSourceId);
+    jfUrl.searchParams.set('Static', 'true');
+    jfUrl.searchParams.set('DeviceId', 'JorchFlix');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
 
-    console.log('Stream proxy a Jellyfin:', jfUrl.toString().replace(apiKey, '***'));
-
-    const transport = jfUrl.protocol === 'https:' ? https : http;
-    const opts = {
-      hostname: jfUrl.hostname,
-      port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
-      path: jfUrl.pathname + jfUrl.search,
-      method: 'GET',
-      headers: { 'X-MediaBrowser-Token': apiKey },
-    };
-
-    if (req.headers.range) opts.headers['Range'] = req.headers.range;
-
-    const proxyReq = transport.request(opts, (proxyRes) => {
-      const status = proxyRes.statusCode;
-      const ct = proxyRes.headers['content-type'] || '';
-
-      console.log('Jellyfin respondió:', status, ct);
-
-      if (status < 200 || status >= 300) {
-        let body = '';
-        proxyRes.on('data', (chunk) => { body += chunk.toString(); });
-        proxyRes.on('end', () => {
-          console.error('Jellyfin error stream:', status, body.slice(0, 500));
-          res.status(502).json({ error: `Jellyfin respondió con ${status}`, detalle: body.slice(0, 200) });
-        });
-        return;
-      }
-
-      if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type']);
-      if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
-      if (proxyRes.headers['content-range']) res.setHeader('Content-Range', proxyRes.headers['content-range']);
-      if (proxyRes.headers['accept-ranges']) res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges']);
-      res.writeHead(status);
-      proxyRes.pipe(res);
-    });
-
-    proxyReq.on('error', (err) => {
-      console.error('Error en proxy stream a', opts.hostname + ':' + opts.port + opts.path.replace(apiKey, '***'), err.code, err.message);
-      if (!res.headersSent) res.status(502).json({ error: `Error al conectar con Jellyfin (${err.code || err.message})` });
-    });
-
-    proxyReq.setTimeout(15000, () => {
-      proxyReq.destroy();
-      if (!res.headersSent) res.status(502).json({ error: 'Timeout conectando con Jellyfin' });
-    });
-
-    proxyReq.end();
+    const fullUrl = jfUrl.toString().replace(apiKey, '***');
+    console.log('Redirigiendo stream a Jellyfin:', fullUrl);
+    res.redirect(jfUrl.toString());
   } catch (err) {
-    console.error('Error en stream:', err.message);
-    res.status(500).json({ error: 'Error en stream' });
+    console.error('Error en stream:', err.response?.status, err.message);
+    res.status(502).json({ error: `Error al obtener stream de Jellyfin (${err.response?.status || err.message})` });
   }
 });
 
