@@ -222,11 +222,9 @@ export default function Player() {
     guardarPrefs(id, { audioIndex: idx });
     const v = videoRef.current;
     if (!v) return;
-    const params = new URLSearchParams();
-    if (token) params.set('token', token);
-    params.set('AudioStreamIndex', idx);
-    if (info?.mediaSourceId) params.set('MediaSourceId', info.mediaSourceId);
-    const url = `/api/media/stream-audio/${id}?${params.toString()}`;
+    const directUrl = info.jellyfinDirectUrl;
+    if (!directUrl) { setDebug('No jellyfinDirectUrl'); return; }
+    const url = `${directUrl}&Static=false&AudioStreamIndex=${idx}`;
     v.src = url;
     v.load();
   };
