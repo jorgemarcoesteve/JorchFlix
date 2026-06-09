@@ -43,7 +43,7 @@ export default function Player() {
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
-  const seekTargetRef = useRef(null);
+  const streamUrlRef = useRef('');
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -138,22 +138,24 @@ export default function Player() {
 
   const token = localStorage.getItem('jf_token');
 
-  const construirUrlStream = () => {
+  const construirUrl = (audioIdx, seekSeconds) => {
     const params = new URLSearchParams();
-    if (audioSel != null) params.set('AudioStreamIndex', audioSel);
+    if (audioIdx != null) params.set('AudioStreamIndex', audioIdx);
     if (token) params.set('token', token);
-    const target = seekTargetRef.current;
-    if (target > 0) {
-      params.set('StartTimeTicks', Math.floor(target * 10000000));
-    }
+    if (seekSeconds > 0) params.set('StartTimeTicks', Math.floor(seekSeconds * 10000000));
     return `/api/media/stream/${id}?${params.toString()}`;
   };
 
-  const recargarStream = useCallback((seekTo) => {
-    seekTargetRef.current = seekTo;
-    setCurrentTime(seekTo);
+  useEffect(() => {
+    streamUrlRef.current = construirUrl(null, 0);
     setStreamKey(k => k + 1);
   }, []);
+
+  const recargarStream = useCallback((seekTo, audioIdx) => {
+    streamUrlRef.current = construirUrl(audioIdx ?? audioSel, seekTo);
+    setCurrentTime(seekTo);
+    setStreamKey(k => k + 1);
+  }, [audioSel]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -172,7 +174,7 @@ export default function Player() {
 
   const handleSeek = (e) => {
     const t = parseFloat(e.target.value);
-    recargarStream(t);
+    recargarStream(t, audioSel);
     setTimeout(() => reportarProgreso(true), 100);
   };
 
@@ -199,10 +201,10 @@ export default function Player() {
   };
 
   const cambiarAudio = (idx) => {
+    const pos = videoRef.current?.currentTime || 0;
     setAudioSel(idx);
     guardarPrefs(id, { audioIndex: idx });
-    const pos = videoRef.current?.currentTime || 0;
-    recargarStream(pos);
+    recargarStream(pos, idx);
   };
 
   const cambiarSub = (idx) => {
@@ -317,19 +319,14 @@ export default function Player() {
         <video
           key={streamKey}
           ref={videoRef}
-          src={construirUrlStream()}
+          src={streamUrlRef.current}
           className="max-w-full max-h-full"
           onClick={togglePlay}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            const target = seekTargetRef.current;
-            if (target > 0) {
-              v.currentTime = target;
-              seekTargetRef.current = null;
-              v.play().catch(() => {});
-            } else if (info?.resumeSeconds > 1) {
+            if (!streamUrlRef.current.includes('StartTimeTicks') && info?.resumeSeconds > 1) {
               v.currentTime = info.resumeSeconds;
               setReanudando(true);
               setTimeout(() => setReanudando(false), 3000);
