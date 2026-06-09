@@ -174,11 +174,20 @@ export default function Player() {
     if (modoRemux) {
       const v = videoRef.current;
       if (!v) return;
-      const base = v.src.split('?')[0];
-      const params = new URLSearchParams(v.src.split('?')[1] || '');
+      const params = new URLSearchParams();
+      if (token) params.set('token', token);
+      if (audioSel != null) params.set('AudioStreamIndex', audioSel);
+      if (info?.mediaSourceId) params.set('MediaSourceId', info.mediaSourceId);
       params.set('StartTimeTicks', Math.floor(t * 10000000));
-      v.src = `${base}?${params.toString()}`;
+      v.src = `/api/media/stream-audio/${id}?${params.toString()}`;
       v.load();
+      setTimeout(() => {
+        const v2 = videoRef.current;
+        if (v2 && v2.networkState === v2.NETWORK_NO_SOURCE && info?.jellyfinDirectUrl) {
+          v2.src = `${info.jellyfinDirectUrl}&Static=false&AudioStreamIndex=${audioSel}&StartTimeTicks=${Math.floor(t * 10000000)}`;
+          v2.load();
+        }
+      }, 3000);
     } else {
       if (videoRef.current) videoRef.current.currentTime = t;
     }
@@ -351,10 +360,10 @@ export default function Player() {
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            if (v.src.includes('/stream-audio/')) {
+            const match = v.src.match(/StartTimeTicks=(\d+)/);
+            if (match) setCurrentTime(parseInt(match[1]) / 10000000);
+            if (v.src.includes('/stream-audio/') || v.src.includes('Static=false')) {
               setModoRemux(true);
-              const match = v.src.match(/StartTimeTicks=(\d+)/);
-              if (match) setCurrentTime(parseInt(match[1]) / 10000000);
             } else {
               setModoRemux(false);
               if (info?.resumeSeconds > 1) {
