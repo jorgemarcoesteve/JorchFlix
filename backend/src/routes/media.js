@@ -360,7 +360,8 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     jfUrl.searchParams.set('api_key', apiKey);
     jfUrl.searchParams.set('UserId', userId);
     jfUrl.searchParams.set('MediaSourceId', mediaSourceId);
-    jfUrl.searchParams.set('Static', 'true');
+    jfUrl.searchParams.set('Static', 'false');
+    jfUrl.searchParams.set('RequireAvc', 'true');
     jfUrl.searchParams.set('DeviceId', 'JorchFlix');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
 
