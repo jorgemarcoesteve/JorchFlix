@@ -188,20 +188,6 @@ router.get('/en-jellyfin', autenticar, async (req, res) => {
   }
 });
 
-router.get('/:tipo/:tmdbId', autenticar, async (req, res) => {
-  try {
-    const { tipo, tmdbId } = req.params;
-    if (!['movie', 'tv'].includes(tipo)) {
-      return res.status(400).json({ error: 'Tipo debe ser movie o tv' });
-    }
-    const data = await tmdb.detail(tipo, tmdbId);
-    res.json(data);
-  } catch (err) {
-    console.error('Error al obtener detalle TMDB:', err.message);
-    res.status(500).json({ error: 'Error al obtener detalles del contenido' });
-  }
-});
-
 router.get('/biblioteca/carpetas', autenticar, async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
@@ -274,6 +260,20 @@ router.get('/imagen/:itemId', autenticar, async (req, res) => {
   } catch (err) {
     console.error('Error al obtener imagen Jellyfin:', err.message);
     res.status(404).json({ error: 'Imagen no encontrada' });
+  }
+});
+
+router.get('/:tipo/:tmdbId', autenticar, async (req, res) => {
+  try {
+    const { tipo, tmdbId } = req.params;
+    if (!['movie', 'tv'].includes(tipo)) {
+      return res.status(400).json({ error: 'Tipo debe ser movie o tv' });
+    }
+    const data = await tmdb.detail(tipo, tmdbId);
+    res.json(data);
+  } catch (err) {
+    console.error('Error al obtener detalle TMDB:', err.message);
+    res.status(500).json({ error: 'Error al obtener detalles del contenido' });
   }
 });
 
