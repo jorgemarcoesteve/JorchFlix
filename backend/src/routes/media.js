@@ -401,13 +401,21 @@ function proxyJellyfin(jfUrl, apiKey, res, transformBody) {
           } catch (e) { reject(e); }
         });
       } else {
-        const headers = { ...proxyRes.headers };
-        delete headers['x-removed-header'];
-        headers['Access-Control-Allow-Origin'] = '*';
-        headers['Cache-Control'] = 'public, max-age=3600';
-        res.writeHead(proxyRes.statusCode, headers);
-        proxyRes.pipe(res);
-        proxyRes.on('end', resolve);
+        let body = '';
+        proxyRes.setEncoding('utf8');
+        proxyRes.on('data', chunk => body += chunk);
+        proxyRes.on('end', () => {
+          if (proxyRes.statusCode >= 400) {
+            console.error(`Jellyfin error ${proxyRes.statusCode} for ${jfUrl.pathname}: ${body.slice(0, 500)}`);
+          }
+          const headers = { ...proxyRes.headers };
+          delete headers['x-removed-header'];
+          headers['Access-Control-Allow-Origin'] = '*';
+          headers['Cache-Control'] = 'public, max-age=3600';
+          res.writeHead(proxyRes.statusCode, headers);
+          res.end(body);
+          resolve();
+        });
       }
     });
     proxyReq.on('error', (err) => { console.error('Proxy error:', err.message); reject(err); });
