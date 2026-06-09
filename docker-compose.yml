@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   backend:
     build:
@@ -7,8 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: jorchflix-backend
     restart: unless-stopped
-    ports:
-      - "3001:3001"
+    network_mode: host
     environment:
       - PORT=${PORT}
       - JWT_SECRET=${JWT_SECRET}
@@ -21,8 +18,6 @@ services:
       - TMDB_API_KEY=${TMDB_API_KEY}
     volumes:
       - jorchflix-data:/app/data
-    networks:
-      - jorchflix-net
 
   frontend:
     build:
@@ -30,16 +25,9 @@ services:
       dockerfile: Dockerfile
     container_name: jorchflix-frontend
     restart: unless-stopped
-    ports:
-      - "80:80"
+    network_mode: host
     depends_on:
       - backend
-    networks:
-      - jorchflix-net
 
 volumes:
   jorchflix-data:
-
-networks:
-  jorchflix-net:
-    driver: bridge
