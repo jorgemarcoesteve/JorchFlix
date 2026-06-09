@@ -1,6 +1,9 @@
 const { Router } = require('express');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
+const http = require('http');
+const https = require('https');
+const { URL } = require('url');
 const config = require('../config');
 const SettingsService = require('../services/settings');
 const { getDatabase } = require('../config/database');
@@ -337,12 +340,38 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
 
-    const params = new URLSearchParams({ api_key: apiKey, Static: 'true' });
-    if (req.query.AudioStreamIndex) params.set('AudioStreamIndex', req.query.AudioStreamIndex);
+    const jfUrl = new URL(`${baseUrl}/Videos/${req.params.itemId}/stream`);
+    jfUrl.searchParams.set('api_key', apiKey);
+    jfUrl.searchParams.set('Static', 'true');
+    if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
 
-    const jfUrl = `${baseUrl}/Videos/${req.params.itemId}/stream?${params.toString()}`;
-    console.log('Redirigiendo stream a Jellyfin:', jfUrl.replace(apiKey, '***'));
-    res.redirect(jfUrl);
+    const transport = jfUrl.protocol === 'https:' ? https : http;
+    const opts = {
+      hostname: jfUrl.hostname,
+      port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
+      path: jfUrl.pathname + jfUrl.search,
+      method: 'GET',
+      headers: { 'X-MediaBrowser-Token': apiKey },
+    };
+
+    if (req.headers.range) opts.headers['Range'] = req.headers.range;
+
+    const proxyReq = transport.request(opts, (proxyRes) => {
+      const h = proxyRes.headers;
+      if (h['content-type']) res.setHeader('Content-Type', h['content-type']);
+      if (h['content-length']) res.setHeader('Content-Length', h['content-length']);
+      if (h['content-range']) res.setHeader('Content-Range', h['content-range']);
+      if (h['accept-ranges']) res.setHeader('Accept-Ranges', h['accept-ranges']);
+      res.writeHead(proxyRes.statusCode);
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on('error', (err) => {
+      console.error('Error en proxy stream:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Error al conectar con Jellyfin' });
+    });
+
+    proxyReq.end();
   } catch (err) {
     console.error('Error en stream:', err.message);
     res.status(500).json({ error: 'Error en stream' });
@@ -356,19 +385,32 @@ router.get('/subtitulos/:itemId/:subIndex', verificarTokenDesdeQuery, async (req
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
     if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
-    const response = await axios({
+    const jfUrl = new URL(`${baseUrl}/Videos/${req.params.itemId}/${req.params.itemId}/Subtitles/${req.params.subIndex}/Stream`);
+    jfUrl.searchParams.set('api_key', apiKey);
+
+    const transport = jfUrl.protocol === 'https:' ? https : http;
+    const opts = {
+      hostname: jfUrl.hostname,
+      port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
+      path: jfUrl.pathname + jfUrl.search,
       method: 'GET',
-      url: `${baseUrl}/Videos/${req.params.itemId}/${req.params.itemId}/Subtitles/${req.params.subIndex}/Stream`,
-      params: { api_key: apiKey },
-      responseType: 'stream',
-      timeout: 10000,
+      headers: { 'X-MediaBrowser-Token': apiKey },
+    };
+
+    const proxyReq = transport.request(opts, (proxyRes) => {
+      res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'text/plain');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.writeHead(proxyRes.statusCode);
+      proxyRes.pipe(res);
     });
 
-    let ct = response.headers['content-type'] || 'text/plain';
-    res.setHeader('Content-Type', ct);
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    response.data.pipe(res);
+    proxyReq.on('error', (err) => {
+      console.error('Error en proxy subtítulos:', err.message);
+      if (!res.headersSent) res.status(404).json({ error: 'Subtítulo no encontrado' });
+    });
+
+    proxyReq.end();
   } catch (err) {
     console.error('Error al obtener subtítulo:', err.message);
     res.status(404).json({ error: 'Subtítulo no encontrado' });
