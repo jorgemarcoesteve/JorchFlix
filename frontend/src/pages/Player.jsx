@@ -40,10 +40,10 @@ export default function Player() {
   const [mostrarPistas, setMostrarPistas] = useState(false);
   const [controlesVisibles, setControlesVisibles] = useState(true);
   const [debug, setDebug] = useState('');
+  const [modoRemux, setModoRemux] = useState(false);
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
-  const trackElsRef = useRef({});
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -171,7 +171,17 @@ export default function Player() {
 
   const handleSeek = (e) => {
     const t = parseFloat(e.target.value);
-    if (videoRef.current) videoRef.current.currentTime = t;
+    if (modoRemux) {
+      const v = videoRef.current;
+      if (!v) return;
+      const base = v.src.split('?')[0];
+      const params = new URLSearchParams(v.src.split('?')[1] || '');
+      params.set('StartTimeTicks', Math.floor(t * 10000000));
+      v.src = `${base}?${params.toString()}`;
+      v.load();
+    } else {
+      if (videoRef.current) videoRef.current.currentTime = t;
+    }
     setCurrentTime(t);
     setTimeout(() => reportarProgreso(true), 100);
   };
@@ -198,51 +208,36 @@ export default function Player() {
     }
   };
 
-  const aplicarSub = (jfIdx) => {
-    const v = videoRef.current;
-    if (!v) return;
-    for (let i = 0; i < v.textTracks.length; i++) {
-      v.textTracks[i].mode = 'hidden';
-    }
-    if (jfIdx >= 0) {
-      const el = trackElsRef.current[jfIdx];
-      if (el?.track) { el.track.mode = 'showing'; return; }
-      for (let i = 0; i < v.textTracks.length; i++) {
-        const bt = v.textTracks[i];
-        if (bt.language === (info?.pistas?.subtitulos?.find(s => s.index === jfIdx)?.language)) {
-          v.textTracks[i].mode = 'showing';
-          return;
-        }
-      }
-    }
-  };
-
   const cambiarAudio = (idx) => {
     setAudioSel(idx);
     guardarPrefs(id, { audioIndex: idx });
     const v = videoRef.current;
     if (!v) return;
-    const directUrl = info.jellyfinDirectUrl;
-    if (!directUrl) { setDebug('No jellyfinDirectUrl'); return; }
-    const url = `${directUrl}&Static=false&AudioStreamIndex=${idx}`;
-    v.src = url;
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    params.set('AudioStreamIndex', idx);
+    if (info?.mediaSourceId) params.set('MediaSourceId', info.mediaSourceId);
+    v.src = `/api/media/stream-audio/${id}?${params.toString()}`;
+    setModoRemux(true);
     v.load();
   };
 
   const cambiarSub = (idx) => {
     setSubSel(idx);
     guardarPrefs(id, { subIndex: idx });
+  };
+
+  useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     for (let i = 0; i < v.textTracks.length; i++) v.textTracks[i].mode = 'hidden';
-    if (idx < 0) return;
-    const el = trackElsRef.current[idx];
-    if (el?.track) { el.track.mode = 'showing'; return; }
+    if (subSel < 0) return;
     for (let i = 0; i < v.textTracks.length; i++) {
-      const subLang = info?.pistas?.subtitulos?.find(s => s.index === idx)?.language;
+      if (v.textTracks[i].mode !== 'hidden') continue;
+      const subLang = info?.pistas?.subtitulos?.find(s => s.index === subSel)?.language;
       if (v.textTracks[i].language === subLang) { v.textTracks[i].mode = 'showing'; return; }
     }
-  };
+  }, [subSel, info]);
 
   const fmt = (s) => {
     if (!s || !isFinite(s)) return '0:00';
@@ -348,14 +343,17 @@ export default function Player() {
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            aplicarSub(subSel);
-            if (info?.resumeSeconds > 1 && !v.src.includes('Static=false')) {
-              v.currentTime = info.resumeSeconds;
-              setReanudando(true);
-              setTimeout(() => setReanudando(false), 3000);
-            }
-            if (v.src.includes('Static=false')) {
-              setReanudando(false);
+            if (v.src.includes('/stream-audio/')) {
+              setModoRemux(true);
+              const match = v.src.match(/StartTimeTicks=(\d+)/);
+              if (match) setCurrentTime(parseInt(match[1]) / 10000000);
+            } else {
+              setModoRemux(false);
+              if (info?.resumeSeconds > 1) {
+                v.currentTime = info.resumeSeconds;
+                setReanudando(true);
+                setTimeout(() => setReanudando(false), 3000);
+              }
             }
           }}
           onEnded={() => { setPlaying(false); marcarVisto(); reportarProgreso(true); }}
@@ -366,10 +364,10 @@ export default function Player() {
         >
           {info.pistas.subtitulos.map((s) => (
             <track key={s.index} kind="subtitles"
-              ref={el => { if (el) trackElsRef.current[s.index] = el; }}
               src={`/api/media/subtitulos/${id}/${s.index}?token=${token}`}
               srcLang={s.language || 'und'}
-              label={s.title || s.language} />
+              label={s.title || s.language}
+              default={subSel === s.index} />
           ))}
         </video>
 
