@@ -44,11 +44,6 @@ export default function Player() {
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
   const trackElsRef = useRef({});
-  const offsetRef = useRef(0);
-
-  function posReal(v) {
-    return (v?.currentTime || 0) + offsetRef.current;
-  }
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -86,7 +81,7 @@ export default function Player() {
     const ahora = Date.now();
     if (!forzar && ahora - ultimoReporteRef.current < 15000) return;
     ultimoReporteRef.current = ahora;
-    const posTicks = Math.floor(posReal(videoRef.current) * 10000000);
+    const posTicks = Math.floor(videoRef.current.currentTime * 10000000);
     try {
       const { data } = await api.post(`/media/reportar-progreso/${id}`, {
         positionTicks: posTicks,
@@ -142,34 +137,17 @@ export default function Player() {
   }, [info]);
 
   const token = localStorage.getItem('jf_token');
-  const streamKeyRef = useRef(0);
-
-  function construirUrl(audioIdx, seekTicks, usarStaticFalse) {
-    const params = new URLSearchParams();
-    if (token) params.set('token', token);
-    if (usarStaticFalse) params.set('Static', 'false');
-    if (audioIdx != null) params.set('AudioStreamIndex', audioIdx);
-    if (seekTicks > 0) params.set('StartTimeTicks', Math.floor(seekTicks));
-    return `/api/media/stream/${id}?${params.toString()}`;
-  }
-
-  const cargarStream = useCallback((audioIdx, seekTicks, usarStaticFalse) => {
-    const v = videoRef.current;
-    if (!v) return;
-    const url = construirUrl(audioIdx, seekTicks, usarStaticFalse);
-    v.src = url;
-    streamKeyRef.current += 1;
-    v.load();
-    if (seekTicks > 0) {
-      setTimeout(() => { if (videoRef.current) videoRef.current.play(); }, 200);
-    }
-  }, [id]);
 
   useEffect(() => {
     if (!info) return;
     const v = videoRef.current;
     if (!v) return;
-    if (!v.src) cargarStream(audioSel, info.resumeSeconds > 1 ? info.resumeSeconds * 10000000 : 0, false);
+    if (!v.src) {
+      const params = new URLSearchParams();
+      if (token) params.set('token', token);
+      v.src = `/api/media/stream/${id}?${params.toString()}`;
+      v.load();
+    }
   }, [info]);
 
   const togglePlay = () => {
@@ -184,7 +162,7 @@ export default function Player() {
   };
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) setCurrentTime(posReal(videoRef.current));
+    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
   };
 
   const handleSeekPreview = (e) => {
@@ -193,7 +171,9 @@ export default function Player() {
 
   const handleSeek = (e) => {
     const t = parseFloat(e.target.value);
-    cargarStream(null, Math.floor(t * 10000000), false);
+    if (videoRef.current) videoRef.current.currentTime = t;
+    setCurrentTime(t);
+    setTimeout(() => reportarProgreso(true), 100);
   };
 
   const toggleMute = () => {
@@ -240,13 +220,30 @@ export default function Player() {
   const cambiarAudio = (idx) => {
     setAudioSel(idx);
     guardarPrefs(id, { audioIndex: idx });
-    cargarStream(idx, Math.floor(posReal(videoRef.current) * 10000000), true);
+    const v = videoRef.current;
+    if (!v) return;
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    params.set('Static', 'false');
+    params.set('AudioStreamIndex', idx);
+    const url = `/api/media/stream/${id}?${params.toString()}`;
+    v.src = url;
+    v.load();
   };
 
   const cambiarSub = (idx) => {
     setSubSel(idx);
     guardarPrefs(id, { subIndex: idx });
-    aplicarSub(idx);
+    const v = videoRef.current;
+    if (!v) return;
+    for (let i = 0; i < v.textTracks.length; i++) v.textTracks[i].mode = 'hidden';
+    if (idx < 0) return;
+    const el = trackElsRef.current[idx];
+    if (el?.track) { el.track.mode = 'showing'; return; }
+    for (let i = 0; i < v.textTracks.length; i++) {
+      const subLang = info?.pistas?.subtitulos?.find(s => s.index === idx)?.language;
+      if (v.textTracks[i].language === subLang) { v.textTracks[i].mode = 'showing'; return; }
+    }
   };
 
   const fmt = (s) => {
@@ -353,17 +350,14 @@ export default function Player() {
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            const match = v.src.match(/StartTimeTicks=(\d+)/);
-            if (match) {
-              offsetRef.current = parseInt(match[1]) / 10000000;
-              setCurrentTime(offsetRef.current);
-            } else {
-              offsetRef.current = 0;
-            }
             aplicarSub(subSel);
-            if (offsetRef.current > 1) {
+            if (info?.resumeSeconds > 1 && !v.src.includes('Static=false')) {
+              v.currentTime = info.resumeSeconds;
               setReanudando(true);
               setTimeout(() => setReanudando(false), 3000);
+            }
+            if (v.src.includes('Static=false')) {
+              setReanudando(false);
             }
           }}
           onEnded={() => { setPlaying(false); marcarVisto(); reportarProgreso(true); }}
