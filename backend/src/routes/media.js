@@ -351,55 +351,37 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     jfUrl.searchParams.set('DeviceId', 'JorchFlix');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
     if (req.query.StartTimeTicks) jfUrl.searchParams.set('StartTimeTicks', req.query.StartTimeTicks);
+    if (jfUrl.searchParams.get('Static') === 'false') {
+      jfUrl.searchParams.set('VideoCodec', 'h264');
+      jfUrl.searchParams.set('AudioCodec', 'aac');
+    }
 
     const forwardHeaders = ['range', 'accept'];
-    streamFromJellyfin(jfUrl, apiKey, req, res, forwardHeaders, 5);
+    const headers = Object.fromEntries(forwardHeaders.filter(h => req.headers[h]).map(h => [h, req.headers[h]]));
+    headers['X-MediaBrowser-Token'] = apiKey;
+
+    const response = await axios({
+      method: 'GET',
+      url: jfUrl.href,
+      responseType: 'stream',
+      headers,
+      maxRedirects: 5,
+      validateStatus: () => true,
+    });
+
+    const outHeaders = { ...response.headers };
+    delete outHeaders['content-disposition'];
+    delete outHeaders['content-length'];
+    outHeaders['Access-Control-Allow-Origin'] = '*';
+    outHeaders['Cross-Origin-Resource-Policy'] = 'cross-origin';
+    outHeaders['Cache-Control'] = 'no-cache';
+    res.writeHead(response.status, outHeaders);
+    response.data.pipe(res);
   } catch (err) {
     console.error('Error en stream:', err.message);
     if (!res.headersSent) res.status(502).json({ error: 'Error al obtener stream' });
   }
 });
-
-function streamFromJellyfin(jfUrl, apiKey, req, res, forwardHeaders, redirectsLeft) {
-  if (redirectsLeft <= 0) {
-    return res.status(502).json({ error: 'Demasiadas redirecciones' });
-  }
-
-  const transport = jfUrl.protocol === 'https:' ? https : http;
-  const opts = {
-    hostname: jfUrl.hostname,
-    port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
-    path: jfUrl.pathname + jfUrl.search,
-    method: 'GET',
-    headers: {
-      'X-MediaBrowser-Token': apiKey,
-      ...Object.fromEntries(forwardHeaders.filter(h => req.headers[h]).map(h => [h, req.headers[h]])),
-    },
-  };
-
-  const proxyReq = transport.request(opts, (proxyRes) => {
-    if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
-      proxyReq.destroy();
-      const redirectUrl = new URL(proxyRes.headers.location, jfUrl.origin);
-      console.log('Siguiendo redirect a', redirectUrl.href);
-      return streamFromJellyfin(redirectUrl, apiKey, req, res, forwardHeaders, redirectsLeft - 1);
-    }
-
-    const headers = { ...proxyRes.headers };
-    headers['Access-Control-Allow-Origin'] = '*';
-    headers['Cache-Control'] = 'no-cache';
-    headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
-    res.writeHead(proxyRes.statusCode, headers);
-    proxyRes.pipe(res);
-  });
-
-  proxyReq.on('error', (err) => {
-    console.error('Error en proxy stream:', err.message);
-    if (!res.headersSent) res.status(502).json({ error: 'Error al conectar con Jellyfin' });
-  });
-
-  proxyReq.end();
-}
 
 function proxyJellyfin(jfUrl, apiKey, res, transformBody) {
   return new Promise((resolve, reject) => {
