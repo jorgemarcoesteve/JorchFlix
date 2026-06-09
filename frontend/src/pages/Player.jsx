@@ -94,6 +94,9 @@ export default function Player() {
       hls.loadSource(url);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error('hls.js error:', data.type, data.details, data.fatal, data.response?.code, data.response?.text);
+      });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = url;
     }

@@ -401,9 +401,11 @@ function proxyJellyfin(jfUrl, apiKey, res, transformBody) {
           } catch (e) { reject(e); }
         });
       } else {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.writeHead(proxyRes.statusCode, proxyRes.headers['content-type'] || '');
+        const headers = { ...proxyRes.headers };
+        delete headers['x-removed-header'];
+        headers['Access-Control-Allow-Origin'] = '*';
+        headers['Cache-Control'] = 'public, max-age=3600';
+        res.writeHead(proxyRes.statusCode, headers);
         proxyRes.pipe(res);
         proxyRes.on('end', resolve);
       }
