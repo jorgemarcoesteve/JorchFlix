@@ -42,7 +42,6 @@ export default function Player() {
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
-  const streamVerRef = useRef(0);
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -137,32 +136,22 @@ export default function Player() {
 
   const token = localStorage.getItem('jf_token');
 
-  const construirUrl = (audioIdx, seekSeconds) => {
+  const construirUrl = (audioIdx) => {
     const params = new URLSearchParams();
     if (audioIdx != null) params.set('AudioStreamIndex', audioIdx);
     if (token) params.set('token', token);
-    if (seekSeconds > 0) params.set('StartTimeTicks', Math.floor(seekSeconds * 10000000));
     return `/api/media/stream/${id}?${params.toString()}`;
-  };
-
-  const cargarSrc = (url, seekOnLoad) => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (seekOnLoad > 0) {
-      v.addEventListener('loadedmetadata', function onMeta() {
-        this.currentTime = seekOnLoad;
-        this.removeEventListener('loadedmetadata', onMeta);
-      });
-    }
-    v.src = url;
-    v.load();
-    v.play().catch(() => {});
   };
 
   useEffect(() => {
     if (!info) return;
-    const url = construirUrl(audioSel, 0);
-    cargarSrc(url, info?.resumeSeconds > 1 ? info.resumeSeconds : 0);
+    const v = videoRef.current;
+    if (!v) return;
+    const url = construirUrl(audioSel);
+    if (v.src !== url) {
+      v.src = url;
+      v.load();
+    }
   }, [info]);
 
   const togglePlay = () => {
@@ -182,7 +171,7 @@ export default function Player() {
 
   const handleSeek = (e) => {
     const t = parseFloat(e.target.value);
-    cargarSrc(construirUrl(audioSel, t), t);
+    if (videoRef.current) videoRef.current.currentTime = t;
     setCurrentTime(t);
     setTimeout(() => reportarProgreso(true), 100);
   };
@@ -212,8 +201,6 @@ export default function Player() {
   const cambiarAudio = (idx) => {
     setAudioSel(idx);
     guardarPrefs(id, { audioIndex: idx });
-    const pos = videoRef.current?.currentTime || 0;
-    cargarSrc(construirUrl(idx, pos), pos);
   };
 
   const cambiarSub = (idx) => {
@@ -333,6 +320,11 @@ export default function Player() {
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
+            if (info?.resumeSeconds > 1) {
+              v.currentTime = info.resumeSeconds;
+              setReanudando(true);
+              setTimeout(() => setReanudando(false), 3000);
+            }
             if (subSel != null && subSel >= 0 && v.textTracks[subSel]) {
               v.textTracks[subSel].mode = 'showing';
             }

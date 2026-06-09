@@ -345,11 +345,8 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
 
     const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/stream`);
     jfUrl.searchParams.set('api_key', apiKey);
-    jfUrl.searchParams.set('UserId', userId);
-    jfUrl.searchParams.set('Static', 'false');
-    jfUrl.searchParams.set('DeviceId', 'JorchFlix');
-    if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
-    if (req.query.StartTimeTicks) jfUrl.searchParams.set('StartTimeTicks', req.query.StartTimeTicks);
+    jfUrl.searchParams.set('Static', 'true');
+    jfUrl.searchParams.set('MediaSourceId', itemId);
 
     const transport = jfUrl.protocol === 'https:' ? https : http;
     const forwardHeaders = ['range', 'accept'];
