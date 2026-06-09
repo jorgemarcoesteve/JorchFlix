@@ -10,6 +10,7 @@ node_modules/
 # Build
 dist/
 build/
+frontend/dist/
 
 # Base de datos SQLite
 data/
