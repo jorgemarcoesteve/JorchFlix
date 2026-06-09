@@ -250,6 +250,46 @@ router.get('/biblioteca/items', autenticar, async (req, res) => {
   }
 });
 
+router.get('/player-info/:itemId', autenticar, async (req, res) => {
+  try {
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+    if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
+
+    const { data } = await axios.get(`${baseUrl}/Users/${req.usuario.jellyfin_id}/Items/${req.params.itemId}`, {
+      params: { Fields: 'Path,Overview,ProviderIds,MediaSources' },
+      headers: { 'X-MediaBrowser-Token': apiKey },
+      timeout: 5000,
+    });
+
+    const mediaSource = data.MediaSources?.[0];
+    const streamUrl = mediaSource
+      ? `${baseUrl}/Videos/${req.params.itemId}/stream?api_key=${apiKey}&static=true`
+      : null;
+
+    const hlsUrl = `${baseUrl}/Videos/${req.params.itemId}/master.m3u8?api_key=${apiKey}`;
+
+    res.json({
+      id: data.Id,
+      nombre: data.Name,
+      seriesName: data.SeriesName,
+      seasonNumber: data.ParentIndexNumber,
+      episodeNumber: data.IndexNumber,
+      overview: data.Overview,
+      year: data.ProductionYear || data.PremiereDate?.slice(0, 4),
+      image: `${baseUrl}/Items/${data.Id}/Images/Primary?api_key=${apiKey}&width=400`,
+      streamUrl,
+      hlsUrl,
+      runtimeTicks: data.RunTimeTicks,
+      container: mediaSource?.Container,
+    });
+  } catch (err) {
+    console.error('Error al obtener info del item:', err.response?.status, err.message);
+    res.status(404).json({ error: 'Item no encontrado' });
+  }
+});
+
 router.get('/reproducir-directo/:itemId', autenticar, async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');

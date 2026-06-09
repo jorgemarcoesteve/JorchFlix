@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiFilm, FiMonitor, FiFolder, FiExternalLink, FiChevronLeft, FiChevronRight, FiEye, FiArrowLeft, FiPlay } from 'react-icons/fi';
 import api from '../services/api';
@@ -43,6 +43,7 @@ function BadgeProgreso({ item }) {
 }
 
 export default function Library() {
+  const navigate = useNavigate();
   const [carpetas, setCarpetas] = useState([]);
   const [carpetaActiva, setCarpetaActiva] = useState(null);
   const [items, setItems] = useState([]);
@@ -103,10 +104,7 @@ export default function Library() {
       setParentActual(item.Id);
       setPagina(0);
     } else if (item.Type === 'Episode') {
-      try {
-        const { data } = await api.get(`/media/reproducir-directo/${item.Id}`);
-        window.open(data.url, '_blank');
-      } catch {}
+      navigate(`/player/${item.Id}`);
     }
   };
 

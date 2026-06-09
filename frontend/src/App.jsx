@@ -11,6 +11,7 @@ import MyRequests from './pages/MyRequests';
 import Profile from './pages/Profile';
 import Library from './pages/Library';
 import Issues from './pages/Issues';
+import Player from './pages/Player';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminRequests from './pages/admin/Requests';
 import AdminUsers from './pages/admin/Users';
@@ -20,6 +21,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/player/:id" element={<ProtectedRoute><Player /></ProtectedRoute>} />
       <Route
         path="/*"
         element={
