@@ -147,10 +147,15 @@ function inicializarEsquema() {
     db.run("ALTER TABLE configuracion ADD COLUMN defecto TEXT");
   } catch (e) {}
 
-  if (!db.get("SELECT valor FROM configuracion WHERE clave = 'jfc_costo'")) {
+  const existeConfig = (clave) => {
+    const r = db.exec(`SELECT valor FROM configuracion WHERE clave = '${clave}'`);
+    return r.length > 0 && r[0].values.length > 0;
+  };
+
+  if (!existeConfig('jfc_costo')) {
     db.run("INSERT INTO configuracion (clave, valor) VALUES ('jfc_costo', '1')");
   }
-  if (!db.get("SELECT valor FROM configuracion WHERE clave = 'max_peticiones_pendientes'")) {
+  if (!existeConfig('max_peticiones_pendientes')) {
     db.run("INSERT INTO configuracion (clave, valor) VALUES ('max_peticiones_pendientes', '0')");
   }
 }
