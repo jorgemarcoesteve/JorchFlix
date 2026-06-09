@@ -346,7 +346,7 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/stream`);
     jfUrl.searchParams.set('api_key', apiKey);
     jfUrl.searchParams.set('UserId', userId);
-    jfUrl.searchParams.set('Static', 'false');
+    jfUrl.searchParams.set('Static', req.query.Static !== 'false' ? 'true' : 'false');
     jfUrl.searchParams.set('MediaSourceId', itemId);
     jfUrl.searchParams.set('DeviceId', 'JorchFlix');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);

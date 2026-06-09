@@ -144,20 +144,21 @@ export default function Player() {
   const token = localStorage.getItem('jf_token');
   const streamKeyRef = useRef(0);
 
-  function construirUrl(audioIdx, seekTicks) {
+  function construirUrl(audioIdx, seekTicks, usarStaticFalse) {
     const params = new URLSearchParams();
     if (token) params.set('token', token);
+    if (usarStaticFalse) params.set('Static', 'false');
     if (audioIdx != null) params.set('AudioStreamIndex', audioIdx);
     if (seekTicks > 0) params.set('StartTimeTicks', Math.floor(seekTicks));
     return `/api/media/stream/${id}?${params.toString()}`;
   }
 
-  const cargarStream = useCallback((audioIdx, seekTicks) => {
+  const cargarStream = useCallback((audioIdx, seekTicks, usarStaticFalse) => {
     const v = videoRef.current;
     if (!v) return;
-    const url = construirUrl(audioIdx, seekTicks);
+    const url = construirUrl(audioIdx, seekTicks, usarStaticFalse);
     v.src = url;
-    streamKeyRef.current += 1; // force re-check in onLoadedMetadata
+    streamKeyRef.current += 1;
     v.load();
     if (seekTicks > 0) {
       setTimeout(() => { if (videoRef.current) videoRef.current.play(); }, 200);
@@ -168,7 +169,7 @@ export default function Player() {
     if (!info) return;
     const v = videoRef.current;
     if (!v) return;
-    if (!v.src) cargarStream(audioSel, info.resumeSeconds > 1 ? info.resumeSeconds * 10000000 : 0);
+    if (!v.src) cargarStream(audioSel, info.resumeSeconds > 1 ? info.resumeSeconds * 10000000 : 0, false);
   }, [info]);
 
   const togglePlay = () => {
@@ -192,7 +193,7 @@ export default function Player() {
 
   const handleSeek = (e) => {
     const t = parseFloat(e.target.value);
-    cargarStream(null, Math.floor(t * 10000000));
+    cargarStream(null, Math.floor(t * 10000000), false);
   };
 
   const toggleMute = () => {
@@ -239,7 +240,7 @@ export default function Player() {
   const cambiarAudio = (idx) => {
     setAudioSel(idx);
     guardarPrefs(id, { audioIndex: idx });
-    cargarStream(idx, Math.floor(posReal(videoRef.current)));
+    cargarStream(idx, Math.floor(posReal(videoRef.current) * 10000000), true);
   };
 
   const cambiarSub = (idx) => {
