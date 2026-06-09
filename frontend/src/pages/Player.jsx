@@ -326,7 +326,9 @@ export default function Player() {
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            if (!streamUrlRef.current.includes('StartTimeTicks') && info?.resumeSeconds > 1) {
+            if (streamUrlRef.current.includes('StartTimeTicks')) {
+              v.play().catch(() => {});
+            } else if (info?.resumeSeconds > 1) {
               v.currentTime = info.resumeSeconds;
               setReanudando(true);
               setTimeout(() => setReanudando(false), 3000);
