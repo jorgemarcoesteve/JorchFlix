@@ -17,9 +17,13 @@ router.post('/login', async (req, res) => {
   try {
     const respuesta = await axios.post(`${config.jellyfin.url}/Users/AuthenticateByName`, {
       Username: usuario,
-      Pw: contrasena,
+      Password: contrasena,
     }, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Emby-Authorization': 'MediaBrowser Client="JorchFlix", Device="Server", DeviceId="JorchFlix", Version="1.0.0"',
+      },
     });
 
     if (!respuesta.data?.User?.Id) {
