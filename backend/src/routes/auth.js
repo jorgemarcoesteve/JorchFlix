@@ -48,6 +48,14 @@ router.post('/login', async (req, res) => {
       user = db.get('SELECT * FROM usuarios WHERE id = ?', [id]);
     }
 
+    if (!user.es_admin) {
+      const hayAdmin = db.get('SELECT COUNT(*) as count FROM usuarios WHERE es_admin = 1');
+      if (hayAdmin.count === 0) {
+        db.run('UPDATE usuarios SET es_admin = 1 WHERE id = ?', [user.id]);
+        user.es_admin = 1;
+      }
+    }
+
     const token = jwt.sign(
       { id: user.id, jellyfin_id: user.jellyfin_id },
       config.jwtSecret,
