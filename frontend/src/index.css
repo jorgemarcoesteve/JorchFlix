@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-jf-fondo text-jf-texto font-sans antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-jf-fondo;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-jf-borde rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-jf-muted;
+}
+
+@layer components {
+  .btn {
+    @apply px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 
+           transform hover:scale-105 active:scale-95 disabled:opacity-50 
+           disabled:cursor-not-allowed disabled:transform-none;
+  }
+  .btn-primary {
+    @apply btn bg-jf-verde text-black hover:bg-jf-verde-oscuro 
+           shadow-lg shadow-jf-verde/25;
+  }
+  .btn-secondary {
+    @apply btn bg-jf-tarjeta text-jf-texto border border-jf-borde 
+           hover:bg-jf-hover;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  .card {
+    @apply bg-jf-tarjeta rounded-xl border border-jf-borde overflow-hidden
+           transition-all duration-300 hover:border-jf-verde/30;
+  }
+  .input {
+    @apply w-full px-4 py-2.5 bg-jf-fondo border border-jf-borde rounded-lg
+           text-jf-texto placeholder-jf-muted focus:outline-none focus:border-jf-verde
+           focus:ring-1 focus:ring-jf-verde/50 transition-colors;
+  }
+  .skeleton {
+    @apply animate-pulse bg-jf-tarjeta rounded-lg;
+  }
+}
