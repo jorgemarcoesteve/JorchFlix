@@ -1,7 +1,9 @@
 const { Router } = require('express');
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
 const config = require('../config');
 const SettingsService = require('../services/settings');
+const { getDatabase } = require('../config/database');
 const { autenticar } = require('../middleware/auth');
 const tmdb = require('../services/tmdb');
 
@@ -312,7 +314,22 @@ router.get('/player-info/:itemId', autenticar, async (req, res) => {
   }
 });
 
-router.get('/stream/:itemId', autenticar, async (req, res) => {
+function verificarTokenDesdeQuery(req, res, next) {
+  const token = req.query.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.split(' ')[1] : null);
+  if (!token) return res.status(401).json({ error: 'Token requerido' });
+  try {
+    const decoded = jwt.verify(token, config.jwtSecret);
+    const db = getDatabase();
+    const usuario = db.get('SELECT * FROM usuarios WHERE id = ?', [decoded.id]);
+    if (!usuario) return res.status(401).json({ error: 'Usuario no encontrado' });
+    req.usuario = usuario;
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+}
+
+router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
     const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
@@ -359,7 +376,7 @@ router.get('/stream/:itemId', autenticar, async (req, res) => {
   }
 });
 
-router.get('/subtitulos/:itemId/:subIndex', autenticar, async (req, res) => {
+router.get('/subtitulos/:itemId/:subIndex', verificarTokenDesdeQuery, async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
     const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);

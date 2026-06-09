@@ -141,11 +141,13 @@ export default function Player() {
     }
   };
 
+  const token = localStorage.getItem('jf_token');
+
   const construirUrlStream = () => {
     const params = new URLSearchParams();
     if (audioSel != null) params.set('AudioStreamIndex', audioSel);
-    const qs = params.toString();
-    return `/api/media/stream/${id}${qs ? '?' + qs : ''}`;
+    if (token) params.set('token', token);
+    return `/api/media/stream/${id}?${params.toString()}`;
   };
 
   const fmt = (s) => {
@@ -273,7 +275,8 @@ export default function Player() {
         >
           {info.pistas?.subtitulos?.map((s, i) => (
             s.deliveryUrl || s.index != null ? (
-              <track key={s.index} kind="subtitles" src={`/api/media/subtitulos/${id}/${s.index}`}
+              <track key={s.index} kind="subtitles"
+                src={`/api/media/subtitulos/${id}/${s.index}?token=${token}`}
                 srcLang={s.language || 'und'} label={s.title || s.language}
                 default={s.isDefault && subSel === i} />
             ) : null
