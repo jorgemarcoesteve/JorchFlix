@@ -2,7 +2,9 @@ const { Router } = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDatabase } = require('../config/database');
 const { autenticar, esAdmin } = require('../middleware/auth');
-const SettingsService = require('../services/settings');
+const radarrService = require('../services/radarr');
+const sonarrService = require('../services/sonarr');
+const { enviarWebhook } = require('../services/webhook');
 
 const router = Router();
 
@@ -70,17 +72,44 @@ router.put('/:id/aprobar', autenticar, esAdmin, async (req, res) => {
     return res.status(400).json({ error: 'La petición ya ha sido procesada' });
   }
 
-  db.run(
-    "UPDATE peticiones SET estado = 'approved', admin_id = ?, actualizado_en = datetime('now') WHERE id = ?",
-    [req.usuario.id, peticion.id]
-  );
+  try {
+    let resultado;
 
-  const actualizada = db.get(
-    'SELECT p.*, u.nombre_usuario FROM peticiones p JOIN usuarios u ON p.usuario_id = u.id WHERE p.id = ?',
-    [peticion.id]
-  );
+    if (peticion.tipo === 'movie') {
+      resultado = await radarrService.enviarAPelicula(peticion.tmdb_id, peticion.titulo);
+    } else {
+      resultado = await sonarrService.enviarASerie(peticion.tmdb_id, peticion.titulo);
+    }
 
-  res.json(actualizada);
+    db.run(
+      "UPDATE peticiones SET estado = 'completed', admin_id = ?, actualizado_en = datetime('now') WHERE id = ?",
+      [req.usuario.id, peticion.id]
+    );
+
+    const actualizada = db.get(
+      'SELECT p.*, u.nombre_usuario FROM peticiones p JOIN usuarios u ON p.usuario_id = u.id WHERE p.id = ?',
+      [peticion.id]
+    );
+
+    await enviarWebhook('peticion_aprobada', {
+      peticion_id: peticion.id,
+      titulo: peticion.titulo,
+      tipo: peticion.tipo,
+      usuario: peticion.nombre_usuario || req.usuario.nombre_usuario,
+    });
+
+    res.json(actualizada);
+  } catch (err) {
+    console.error('Error al procesar petición:', err.message);
+
+    enviarWebhook('peticion_error', {
+      peticion_id: peticion.id,
+      titulo: peticion.titulo,
+      error: err.message,
+    });
+
+    res.status(500).json({ error: `Error al enviar a descarga: ${err.message}` });
+  }
 });
 
 router.put('/:id/rechazar', autenticar, esAdmin, (req, res) => {
@@ -112,6 +141,13 @@ router.put('/:id/rechazar', autenticar, esAdmin, (req, res) => {
     'SELECT p.*, u.nombre_usuario FROM peticiones p JOIN usuarios u ON p.usuario_id = u.id WHERE p.id = ?',
     [peticion.id]
   );
+
+  enviarWebhook('peticion_rechazada', {
+    peticion_id: peticion.id,
+    titulo: peticion.titulo,
+    tipo: peticion.tipo,
+    nota: nota_admin,
+  });
 
   res.json(actualizada);
 });
