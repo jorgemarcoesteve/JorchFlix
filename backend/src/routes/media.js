@@ -258,10 +258,13 @@ router.get('/player-info/:itemId', autenticar, async (req, res) => {
     if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
     const { data } = await axios.get(`${baseUrl}/Users/${req.usuario.jellyfin_id}/Items/${req.params.itemId}`, {
-      params: { Fields: 'Path,Overview,ProviderIds,MediaSources' },
+      params: { Fields: 'Path,Overview,ProviderIds,MediaSources,UserData' },
       headers: { 'X-MediaBrowser-Token': apiKey },
       timeout: 5000,
     });
+
+    const ticks = data.UserData?.PlaybackPositionTicks || 0;
+    const resumeSeconds = Math.floor(ticks / 10000000);
 
     const mediaSource = data.MediaSources?.[0];
     const streamUrl = mediaSource
@@ -269,6 +272,7 @@ router.get('/player-info/:itemId', autenticar, async (req, res) => {
       : null;
 
     const hlsUrl = `${baseUrl}/Videos/${req.params.itemId}/master.m3u8?api_key=${apiKey}`;
+    const played = data.UserData?.Played || false;
 
     res.json({
       id: data.Id,
@@ -279,6 +283,8 @@ router.get('/player-info/:itemId', autenticar, async (req, res) => {
       overview: data.Overview,
       year: data.ProductionYear || data.PremiereDate?.slice(0, 4),
       image: `${baseUrl}/Items/${data.Id}/Images/Primary?api_key=${apiKey}&width=400`,
+      resumeSeconds,
+      played,
       streamUrl,
       hlsUrl,
       runtimeTicks: data.RunTimeTicks,

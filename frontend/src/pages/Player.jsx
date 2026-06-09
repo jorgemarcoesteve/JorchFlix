@@ -14,6 +14,7 @@ export default function Player() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
+  const [reanudando, setReanudando] = useState(false);
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -116,7 +117,14 @@ export default function Player() {
           onClick={togglePlay}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={() => {
-            if (videoRef.current) setDuration(videoRef.current.duration || 0);
+            const v = videoRef.current;
+            if (!v) return;
+            setDuration(v.duration || 0);
+            if (info?.resumeSeconds > 1) {
+              v.currentTime = info.resumeSeconds;
+              setReanudando(true);
+              setTimeout(() => setReanudando(false), 3000);
+            }
           }}
           onEnded={() => setPlaying(false)}
           onPlay={() => setPlaying(true)}
@@ -132,6 +140,12 @@ export default function Player() {
               <FiPlay size={36} className="text-black ml-1" />
             </div>
           </button>
+        )}
+
+        {reanudando && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-jf-verde/90 text-black text-xs font-bold px-4 py-2 rounded-xl shadow-lg animate-pulse">
+            Reanudando desde {fmt(info?.resumeSeconds)}
+          </div>
         )}
       </div>
 
