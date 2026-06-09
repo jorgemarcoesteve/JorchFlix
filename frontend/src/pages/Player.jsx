@@ -224,9 +224,8 @@ export default function Player() {
     if (!v) return;
     const params = new URLSearchParams();
     if (token) params.set('token', token);
-    params.set('Static', 'false');
     params.set('AudioStreamIndex', idx);
-    const url = `/api/media/stream/${id}?${params.toString()}`;
+    const url = `/api/media/stream-audio/${id}?${params.toString()}`;
     v.src = url;
     v.load();
   };

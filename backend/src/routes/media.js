@@ -346,40 +346,92 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/stream`);
     jfUrl.searchParams.set('api_key', apiKey);
     jfUrl.searchParams.set('UserId', userId);
-    jfUrl.searchParams.set('Static', req.query.Static !== 'false' ? 'true' : 'false');
+    jfUrl.searchParams.set('Static', 'true');
+    jfUrl.searchParams.set('MediaSourceId', itemId);
+    jfUrl.searchParams.set('DeviceId', 'JorchFlix');
+
+    const transport = jfUrl.protocol === 'https:' ? https : http;
+    const forwardHeaders = ['range', 'accept'];
+    const opts = {
+      hostname: jfUrl.hostname,
+      port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
+      path: jfUrl.pathname + jfUrl.search,
+      method: 'GET',
+      headers: {
+        'X-MediaBrowser-Token': apiKey,
+        ...Object.fromEntries(forwardHeaders.filter(h => req.headers[h]).map(h => [h, req.headers[h]])),
+      },
+    };
+
+    const proxyReq = transport.request(opts, (proxyRes) => {
+      const headers = { ...proxyRes.headers };
+      delete headers['x-removed-header'];
+      headers['Access-Control-Allow-Origin'] = '*';
+      headers['Cache-Control'] = 'no-cache';
+      res.writeHead(proxyRes.statusCode, headers);
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on('error', (err) => {
+      console.error('Error en proxy stream:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Error al conectar con Jellyfin' });
+    });
+
+    proxyReq.end();
+  } catch (err) {
+    console.error('Error en stream:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Error al obtener stream' });
+  }
+});
+
+router.get('/stream-audio/:itemId', verificarTokenDesdeQuery, async (req, res) => {
+  try {
+    const baseUrl = config.jellyfin.url?.replace(/\/+$/, '');
+    const apiKey = config.jellyfin.apiKey;
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+    if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
+
+    const itemId = req.params.itemId;
+    const userId = req.usuario.jellyfin_id;
+
+    const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/stream`);
+    jfUrl.searchParams.set('api_key', apiKey);
+    jfUrl.searchParams.set('UserId', userId);
+    jfUrl.searchParams.set('Static', 'false');
     jfUrl.searchParams.set('MediaSourceId', itemId);
     jfUrl.searchParams.set('DeviceId', 'JorchFlix');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
     if (req.query.StartTimeTicks) jfUrl.searchParams.set('StartTimeTicks', req.query.StartTimeTicks);
-    if (jfUrl.searchParams.get('Static') === 'false') {
-      jfUrl.searchParams.set('VideoCodec', 'h264');
-      jfUrl.searchParams.set('AudioCodec', 'aac');
-    }
 
-    const forwardHeaders = ['range', 'accept'];
-    const headers = Object.fromEntries(forwardHeaders.filter(h => req.headers[h]).map(h => [h, req.headers[h]]));
-    headers['X-MediaBrowser-Token'] = apiKey;
+    console.log('Audio stream URL:', jfUrl.href);
 
-    const response = await axios({
+    const transport = jfUrl.protocol === 'https:' ? https : http;
+    const opts = {
+      hostname: jfUrl.hostname,
+      port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
+      path: jfUrl.pathname + jfUrl.search,
       method: 'GET',
-      url: jfUrl.href,
-      responseType: 'stream',
-      headers,
-      maxRedirects: 5,
-      validateStatus: () => true,
+      headers: { 'X-MediaBrowser-Token': apiKey },
+    };
+
+    const proxyReq = transport.request(opts, (proxyRes) => {
+      console.log('Jellyfin audio response:', proxyRes.statusCode, proxyRes.headers['content-type']);
+      const headers = { ...proxyRes.headers };
+      headers['Access-Control-Allow-Origin'] = '*';
+      headers['Cache-Control'] = 'no-cache';
+      res.writeHead(proxyRes.statusCode, headers);
+      proxyRes.pipe(res);
     });
 
-    const outHeaders = { ...response.headers };
-    delete outHeaders['content-disposition'];
-    delete outHeaders['content-length'];
-    outHeaders['Access-Control-Allow-Origin'] = '*';
-    outHeaders['Cross-Origin-Resource-Policy'] = 'cross-origin';
-    outHeaders['Cache-Control'] = 'no-cache';
-    res.writeHead(response.status, outHeaders);
-    response.data.pipe(res);
+    proxyReq.on('error', (err) => {
+      console.error('Error proxy audio:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Error al obtener audio' });
+    });
+
+    proxyReq.end();
   } catch (err) {
-    console.error('Error en stream:', err.message);
-    if (!res.headersSent) res.status(502).json({ error: 'Error al obtener stream' });
+    console.error('Error en stream-audio:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Error al obtener audio' });
   }
 });
 
