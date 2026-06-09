@@ -432,6 +432,7 @@ router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
 
     const jfBasePath = new URL(baseUrl).pathname.replace(/\/+$/, '');
+    const token = req.query.token || req.headers.authorization?.replace('Bearer ', '') || '';
 
     await proxyJellyfin(jfUrl, apiKey, res, (body) => {
       const proxyPrefix = `/api/media/hls/${itemId}`;
@@ -441,7 +442,8 @@ router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res
           const trimmed = line.trim();
           if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) return line;
           if (/^https?:\/\//i.test(trimmed)) return line;
-          return `${proxyPrefix}/segment/${trimmed}`;
+          const sep = trimmed.includes('?') ? '&' : '?';
+          return `${proxyPrefix}/segment/${trimmed}${sep}token=${encodeURIComponent(token)}`;
         });
       return { body: rewritten, contentType: 'application/vnd.apple.mpegurl' };
     });
@@ -451,7 +453,7 @@ router.get('/hls/:itemId/master.m3u8', verificarTokenDesdeQuery, async (req, res
   }
 });
 
-router.get('/hls/:itemId/segment/*', verificarTokenDesdeQuery, async (req, res) => {
+router.get('/hls/:itemId/segment/*', async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
     const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
