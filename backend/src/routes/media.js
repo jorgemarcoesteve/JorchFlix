@@ -480,7 +480,7 @@ router.get('/subtitulos/:itemId/:subIndex', verificarTokenDesdeQuery, async (req
     if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
     if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
 
-    const jfUrl = new URL(`${baseUrl}/Videos/${req.params.itemId}/${req.params.itemId}/Subtitles/${req.params.subIndex}/Stream`);
+    const jfUrl = new URL(`${baseUrl}/Videos/${req.params.itemId}/Subtitles/${req.params.subIndex}/Stream`);
     jfUrl.searchParams.set('api_key', apiKey);
 
     const transport = jfUrl.protocol === 'https:' ? https : http;
