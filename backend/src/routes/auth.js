@@ -18,6 +18,8 @@ router.post('/login', async (req, res) => {
   try {
     const jfUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
 
+    console.log(`Autenticando en Jellyfin: ${jfUrl}/Users/authenticatebyname`);
+
     const respuesta = await axios.post(`${jfUrl}/Users/authenticatebyname`, {
       Username: usuario,
       Pw: contrasena,
@@ -78,7 +80,7 @@ router.post('/login', async (req, res) => {
     if (err.response?.status === 401) {
       return res.status(401).json({ error: 'Credenciales inválidas en Jellyfin' });
     }
-    console.error('Error en login Jellyfin:', err.message);
+    console.error('Error en login Jellyfin:', err.message, err.response?.data ? JSON.stringify(err.response.data).slice(0, 1000) : '');
     res.status(500).json({ error: 'Error al conectar con el servidor de autenticación' });
   }
 });

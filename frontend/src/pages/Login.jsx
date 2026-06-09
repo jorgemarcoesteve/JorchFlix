@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
@@ -10,8 +10,13 @@ export default function Login() {
   const [contrasena, setContrasena] = useState('');
   const [mostrarPass, setMostrarPass] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const inputRef = useRef(null);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!cargando && inputRef.current) inputRef.current.focus();
+  }, [cargando]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +30,8 @@ export default function Login() {
       toast.success('¡Bienvenido a JorchFlix!');
       navigate('/');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error al iniciar sesión');
+      const msg = err.response?.data?.error || err.message || 'Error al iniciar sesión';
+      toast.error(msg);
     } finally {
       setCargando(false);
     }
@@ -66,6 +72,7 @@ export default function Login() {
             <div>
               <label className="block text-sm font-medium text-jf-muted mb-1.5">Usuario</label>
               <input
+                ref={inputRef}
                 type="text"
                 value={usuario}
                 onChange={(e) => setUsuario(e.target.value)}
