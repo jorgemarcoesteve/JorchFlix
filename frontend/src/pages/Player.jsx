@@ -42,6 +42,8 @@ export default function Player() {
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
+  const audioMapRef = useRef({});
+  const subMapRef = useRef({});
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -136,18 +138,13 @@ export default function Player() {
 
   const token = localStorage.getItem('jf_token');
 
-  const construirUrl = (audioIdx) => {
-    const params = new URLSearchParams();
-    if (audioIdx != null) params.set('AudioStreamIndex', audioIdx);
-    if (token) params.set('token', token);
-    return `/api/media/stream/${id}?${params.toString()}`;
-  };
-
   useEffect(() => {
     if (!info) return;
     const v = videoRef.current;
     if (!v) return;
-    const url = construirUrl(audioSel);
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    const url = `/api/media/stream/${id}?${params.toString()}`;
     if (v.src !== url) {
       v.src = url;
       v.load();
@@ -201,17 +198,68 @@ export default function Player() {
   const cambiarAudio = (idx) => {
     setAudioSel(idx);
     guardarPrefs(id, { audioIndex: idx });
+    const v = videoRef.current;
+    if (!v?.audioTracks) return;
+    const bIdx = audioMapRef.current[idx];
+    if (bIdx == null) return;
+    for (let i = 0; i < v.audioTracks.length; i++) {
+      v.audioTracks[i].enabled = i === bIdx;
+    }
   };
 
   const cambiarSub = (idx) => {
     setSubSel(idx);
     guardarPrefs(id, { subIndex: idx });
-    if (videoRef.current) {
-      for (let i = 0; i < videoRef.current.textTracks.length; i++) {
-        videoRef.current.textTracks[i].mode = 'hidden';
+    const v = videoRef.current;
+    if (!v) return;
+    for (let i = 0; i < v.textTracks.length; i++) {
+      v.textTracks[i].mode = 'hidden';
+    }
+    if (idx >= 0) {
+      const bIdx = subMapRef.current[idx];
+      if (bIdx != null) v.textTracks[bIdx].mode = 'showing';
+    }
+  };
+
+  const mapearPistas = () => {
+    const v = videoRef.current;
+    if (!v) return;
+
+    audioMapRef.current = {};
+    if (info?.pistas?.audio && v.audioTracks) {
+      for (const jf of info.pistas.audio) {
+        for (let i = 0; i < v.audioTracks.length; i++) {
+          const bt = v.audioTracks[i];
+          if (bt.language === jf.language && bt.label === jf.title) {
+            audioMapRef.current[jf.index] = i;
+            break;
+          }
+        }
       }
-      if (idx >= 0 && idx < videoRef.current.textTracks.length) {
-        videoRef.current.textTracks[idx].mode = 'showing';
+      if (audioSel != null && audioMapRef.current[audioSel] != null) {
+        const bIdx = audioMapRef.current[audioSel];
+        for (let i = 0; i < v.audioTracks.length; i++) {
+          v.audioTracks[i].enabled = i === bIdx;
+        }
+      }
+    }
+
+    subMapRef.current = {};
+    if (info?.pistas?.subtitulos) {
+      for (const jf of info.pistas.subtitulos) {
+        for (let i = 0; i < v.textTracks.length; i++) {
+          const bt = v.textTracks[i];
+          if (bt.language === jf.language && bt.label === jf.title) {
+            subMapRef.current[jf.index] = i;
+            break;
+          }
+        }
+      }
+      for (let i = 0; i < v.textTracks.length; i++) {
+        v.textTracks[i].mode = 'hidden';
+      }
+      if (subSel >= 0 && subMapRef.current[subSel] != null) {
+        v.textTracks[subMapRef.current[subSel]].mode = 'showing';
       }
     }
   };
@@ -296,9 +344,9 @@ export default function Player() {
                   Off
                 </button>
                 {info.pistas.subtitulos.map((s, i) => (
-                  <button key={s.index} onClick={() => cambiarSub(i)}
+                  <button key={s.index} onClick={() => cambiarSub(s.index)}
                     className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
-                      subSel === i
+                      subSel === s.index
                         ? 'bg-jf-verde text-black border-jf-verde font-bold'
                         : 'bg-white/5 text-white/70 border-white/10 hover:border-white/30'
                     }`}>
@@ -320,13 +368,11 @@ export default function Player() {
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
+            mapearPistas();
             if (info?.resumeSeconds > 1) {
               v.currentTime = info.resumeSeconds;
               setReanudando(true);
               setTimeout(() => setReanudando(false), 3000);
-            }
-            if (subSel != null && subSel >= 0 && v.textTracks[subSel]) {
-              v.textTracks[subSel].mode = 'showing';
             }
           }}
           onEnded={() => { setPlaying(false); marcarVisto(); reportarProgreso(true); }}
@@ -334,17 +380,7 @@ export default function Player() {
           onPause={() => { setPlaying(false); reportarProgreso(true); }}
           controls={false}
           playsInline
-        >
-          {info.pistas?.subtitulos?.map((s, i) => (
-            s.deliveryUrl || s.index != null ? (
-              <track key={s.index} kind="subtitles"
-                src={`/api/media/subtitulos/${id}/${s.index}?token=${token}`}
-                srcLang={s.language || 'und'} label={s.title || s.language}
-                default={s.isDefault && subSel === i} />
-            ) : null
-          ))}
-        </video>
-
+        />
         {!playing && (
           <button onClick={togglePlay}
             className="absolute inset-0 flex items-center justify-center bg-black/30 group">
