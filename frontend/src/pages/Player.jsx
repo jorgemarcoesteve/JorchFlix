@@ -3,6 +3,26 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiPlay, FiPause, FiMaximize, FiVolume2, FiVolumeX, FiChevronDown } from 'react-icons/fi';
 import api from '../services/api';
 
+const PREFS_KEY = 'jf_track_prefs';
+
+function cargarPrefs(id) {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return {};
+    const all = JSON.parse(raw);
+    return all[id] || {};
+  } catch { return {}; }
+}
+
+function guardarPrefs(id, prefs) {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    all[id] = { ...all[id], ...prefs };
+    localStorage.setItem(PREFS_KEY, JSON.stringify(all));
+  } catch {}
+}
+
 export default function Player() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -19,10 +39,11 @@ export default function Player() {
   const [subSel, setSubSel] = useState(null);
   const [mostrarPistas, setMostrarPistas] = useState(false);
   const [controlesVisibles, setControlesVisibles] = useState(true);
+  const [streamKey, setStreamKey] = useState(0);
   const playSessionIdRef = useRef(null);
   const ultimoReporteRef = useRef(0);
   const hideTimerRef = useRef(null);
-  const playerRef = useRef(null);
+  const seekTargetRef = useRef(null);
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
@@ -30,13 +51,26 @@ export default function Player() {
         setInfo(data);
         setCargando(false);
         if (data.runtimeTicks) setDuration(data.runtimeTicks / 10000000);
+
+        const prefs = cargarPrefs(id);
+        const audioIdx = prefs.audioIndex;
+        const subIdx = prefs.subIndex;
+
         if (data.pistas?.audio?.length > 0) {
-          const def = data.pistas.audio.find((a) => a.isDefault) || data.pistas.audio[0];
-          setAudioSel(def.index);
+          if (audioIdx != null && data.pistas.audio.some((a) => a.index === audioIdx)) {
+            setAudioSel(audioIdx);
+          } else {
+            const def = data.pistas.audio.find((a) => a.isDefault) || data.pistas.audio[0];
+            setAudioSel(def.index);
+          }
         }
         if (data.pistas?.subtitulos?.length > 0) {
-          const def = data.pistas.subtitulos.find((s) => s.isDefault) || null;
-          setSubSel(def ? def.index : -1);
+          if (subIdx != null) {
+            setSubSel(subIdx);
+          } else {
+            const def = data.pistas.subtitulos.find((s) => s.isDefault) || null;
+            setSubSel(def ? def.index : -1);
+          }
         }
       })
       .catch(() => { setCargando(false); });
@@ -108,8 +142,18 @@ export default function Player() {
     const params = new URLSearchParams();
     if (audioSel != null) params.set('AudioStreamIndex', audioSel);
     if (token) params.set('token', token);
+    const target = seekTargetRef.current;
+    if (target > 0) {
+      params.set('StartTimeTicks', Math.floor(target * 10000000));
+    }
     return `/api/media/stream/${id}?${params.toString()}`;
   };
+
+  const recargarStream = useCallback((seekTo) => {
+    seekTargetRef.current = seekTo;
+    setCurrentTime(seekTo);
+    setStreamKey(k => k + 1);
+  }, []);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -128,9 +172,8 @@ export default function Player() {
 
   const handleSeek = (e) => {
     const t = parseFloat(e.target.value);
-    if (videoRef.current) videoRef.current.currentTime = t;
-    setCurrentTime(t);
-    reportarProgreso(true);
+    recargarStream(t);
+    setTimeout(() => reportarProgreso(true), 100);
   };
 
   const toggleMute = () => {
@@ -157,13 +200,14 @@ export default function Player() {
 
   const cambiarAudio = (idx) => {
     setAudioSel(idx);
-    if (videoRef.current) {
-      videoRef.current.currentTime = videoRef.current.currentTime;
-    }
+    guardarPrefs(id, { audioIndex: idx });
+    const pos = videoRef.current?.currentTime || 0;
+    recargarStream(pos);
   };
 
   const cambiarSub = (idx) => {
     setSubSel(idx);
+    guardarPrefs(id, { subIndex: idx });
     if (videoRef.current) {
       for (let i = 0; i < videoRef.current.textTracks.length; i++) {
         videoRef.current.textTracks[i].mode = 'hidden';
@@ -269,18 +313,23 @@ export default function Player() {
         </div>
       )}
 
-      <div className="flex-1 relative flex items-center justify-center bg-black">
+      <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center">
         <video
+          key={streamKey}
           ref={videoRef}
-          key={audioSel ?? 'default'}
           src={construirUrlStream()}
-          className="w-full h-full object-contain"
+          className="max-w-full max-h-full"
           onClick={togglePlay}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={() => {
             const v = videoRef.current;
             if (!v) return;
-            if (info?.resumeSeconds > 1) {
+            const target = seekTargetRef.current;
+            if (target > 0) {
+              v.currentTime = target;
+              seekTargetRef.current = null;
+              v.play().catch(() => {});
+            } else if (info?.resumeSeconds > 1) {
               v.currentTime = info.resumeSeconds;
               setReanudando(true);
               setTimeout(() => setReanudando(false), 3000);
