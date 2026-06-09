@@ -304,7 +304,7 @@ router.get('/player-info/:itemId', autenticar, async (req, res) => {
       overview: data.Overview,
       year: data.ProductionYear || data.PremiereDate?.slice(0, 4),
       image: `${baseUrl}/Items/${data.Id}/Images/Primary?api_key=${apiKey}&width=400`,
-      jellyfinDirectUrl: `${baseUrl}/Videos/${data.Id}/stream?api_key=${apiKey}&UserId=${userId}&MediaSourceId=${mediaSource?.Id || data.Id}&DeviceId=JorchFlix`,
+      jellyfinDirectUrl: `${baseUrl}/Videos/${data.Id}/stream?api_key=${apiKey}&UserId=${req.usuario.jellyfin_id}&MediaSourceId=${mediaSource?.Id || data.Id}&DeviceId=JorchFlix`,
       resumeSeconds,
       played,
       streamUrl: `/api/media/stream/${req.params.itemId}`,
