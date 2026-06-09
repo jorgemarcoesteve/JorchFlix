@@ -382,8 +382,13 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     });
 
     proxyReq.on('error', (err) => {
-      console.error('Error en proxy stream:', err.message);
-      if (!res.headersSent) res.status(502).json({ error: 'Error al conectar con Jellyfin' });
+      console.error('Error en proxy stream a', opts.hostname + ':' + opts.port + opts.path.replace(apiKey, '***'), err.code, err.message);
+      if (!res.headersSent) res.status(502).json({ error: `Error al conectar con Jellyfin (${err.code || err.message})` });
+    });
+
+    proxyReq.setTimeout(15000, () => {
+      proxyReq.destroy();
+      if (!res.headersSent) res.status(502).json({ error: 'Timeout conectando con Jellyfin' });
     });
 
     proxyReq.end();
