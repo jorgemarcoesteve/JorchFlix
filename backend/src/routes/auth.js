@@ -27,7 +27,6 @@ router.post('/login', async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': 'MediaBrowser Client="JorchFlix", Device="Server", DeviceId="JorchFlix", Version="1.0.0"',
       },
     });
 
