@@ -18,7 +18,16 @@ router.post('/login', async (req, res) => {
     const respuesta = await axios.post(`${config.jellyfin.url}/Users/AuthenticateByName`, {
       Username: usuario,
       Pw: contrasena,
+    }, {
+      headers: { 'Content-Type': 'application/json' },
     });
+
+    if (!respuesta.data?.User?.Id) {
+      console.error('Respuesta inesperada de Jellyfin:', JSON.stringify(respuesta.data).slice(0, 500));
+      return res.status(500).json({
+        error: 'Respuesta inesperada de Jellyfin. Revisa que la URL y API Key sean correctas.',
+      });
+    }
 
     const jellyfinId = respuesta.data.User.Id;
     const db = getDatabase();
