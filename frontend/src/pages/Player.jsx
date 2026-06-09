@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiPlay, FiPause, FiMaximize, FiVolume2, FiVolumeX, FiChevronDown } from 'react-icons/fi';
-import Hls from 'hls.js';
 import api from '../services/api';
 
 export default function Player() {
   const { id } = useParams();
   const navigate = useNavigate();
   const videoRef = useRef(null);
-  const hlsRef = useRef(null);
   const [info, setInfo] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -79,41 +77,12 @@ export default function Player() {
 
   const token = localStorage.getItem('jf_token');
 
-  useEffect(() => {
-    if (!info || !videoRef.current) return;
-    const video = videoRef.current;
-    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-    video.removeAttribute('src');
+  const construirUrlStream = () => {
     const params = new URLSearchParams();
     if (audioSel != null) params.set('AudioStreamIndex', audioSel);
     if (token) params.set('token', token);
-    const url = `/api/media/hls/${id}/master.m3u8?${params.toString()}`;
-    if (Hls.isSupported()) {
-      const hls = new Hls();
-      hlsRef.current = hls;
-      hls.loadSource(url);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error('hls.js error:', data.type, data.details, data.fatal, data.response?.code, data.response?.text);
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
-              break;
-          }
-        }
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = url;
-    }
-    return () => {
-      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-    };
-  }, [id, info, audioSel, token]);
+    return `/api/media/stream/${id}?${params.toString()}`;
+  };
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -279,6 +248,8 @@ export default function Player() {
       <div className="flex-1 relative flex items-center justify-center bg-black">
         <video
           ref={videoRef}
+          key={audioSel ?? 'default'}
+          src={construirUrlStream()}
           className="w-full h-full object-contain"
           onClick={togglePlay}
           onTimeUpdate={handleTimeUpdate}

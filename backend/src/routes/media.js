@@ -344,33 +344,44 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     const itemId = req.params.itemId;
     const userId = req.usuario.jellyfin_id;
 
-    const playbackInfo = await axios.get(`${baseUrl}/Items/${itemId}/PlaybackInfo`, {
-      params: { UserId: userId, api_key: apiKey },
-      headers: { 'X-MediaBrowser-Token': apiKey },
-      timeout: 10000,
-    });
-
-    const mediaSources = playbackInfo.data?.MediaSources || [];
-    const mediaSource = mediaSources[0];
-    if (!mediaSource) return res.status(404).json({ error: 'No hay fuentes de video disponibles' });
-
-    const mediaSourceId = mediaSource.Id;
-
     const jfUrl = new URL(`${baseUrl}/Videos/${itemId}/stream`);
     jfUrl.searchParams.set('api_key', apiKey);
     jfUrl.searchParams.set('UserId', userId);
-    jfUrl.searchParams.set('MediaSourceId', mediaSourceId);
     jfUrl.searchParams.set('Static', 'false');
+    jfUrl.searchParams.set('VideoCodec', 'h264');
+    jfUrl.searchParams.set('AudioCodec', 'aac');
+    jfUrl.searchParams.set('AllowVideoStreamCopy', 'false');
+    jfUrl.searchParams.set('AllowAudioStreamCopy', 'false');
     jfUrl.searchParams.set('RequireAvc', 'true');
     jfUrl.searchParams.set('DeviceId', 'JorchFlix');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
 
-    const fullUrl = jfUrl.toString().replace(apiKey, '***');
-    console.log('Redirigiendo stream a Jellyfin:', fullUrl);
-    res.redirect(jfUrl.toString());
+    const transport = jfUrl.protocol === 'https:' ? https : http;
+    const opts = {
+      hostname: jfUrl.hostname,
+      port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
+      path: jfUrl.pathname + jfUrl.search,
+      method: 'GET',
+      headers: { 'X-MediaBrowser-Token': apiKey },
+    };
+
+    const proxyReq = transport.request(opts, (proxyRes) => {
+      const headers = { ...proxyRes.headers };
+      headers['Access-Control-Allow-Origin'] = '*';
+      headers['Cache-Control'] = 'no-cache';
+      res.writeHead(proxyRes.statusCode, headers);
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on('error', (err) => {
+      console.error('Error en proxy stream:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Error al conectar con Jellyfin' });
+    });
+
+    proxyReq.end();
   } catch (err) {
-    console.error('Error en stream:', err.response?.status, err.message);
-    res.status(502).json({ error: `Error al obtener stream de Jellyfin (${err.response?.status || err.message})` });
+    console.error('Error en stream:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Error al obtener stream' });
   }
 });
 
