@@ -1,53 +1,176 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-jf-fondo text-jf-texto font-sans antialiased;
-}
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
 
-::-webkit-scrollbar {
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  @apply bg-jf-fondo;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-jf-borde rounded-full;
-}
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-jf-muted;
+  body {
+    @apply bg-jf-fondo text-jf-texto font-sans antialiased;
+  }
+
+  ::selection {
+    @apply bg-jf-verde/30 text-white;
+  }
 }
 
 @layer components {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-jf-verde-claro via-jf-verde to-jf-verde-oscuro;
+  }
+
+  .glass {
+    @apply bg-glass backdrop-blur-xl border border-white/10;
+  }
+
+  .glass-card {
+    @apply glass rounded-2xl shadow-card;
+  }
+
+  .hero-gradient {
+    background: linear-gradient(135deg, #0A0A0A 0%, #1B5E20 50%, #0A0A0A 100%);
+  }
+
+  .card-gradient {
+    background: linear-gradient(180deg, rgba(26,26,26,0.8) 0%, rgba(26,26,26,1) 100%);
+  }
+
   .btn {
-    @apply px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 
-           transform hover:scale-105 active:scale-95 disabled:opacity-50 
-           disabled:cursor-not-allowed disabled:transform-none;
+    @apply relative inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold
+           transition-all duration-300 transform overflow-hidden
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
   }
+
+  .btn::after {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+  }
+
+  .btn:hover::after {
+    @apply opacity-100;
+  }
+
   .btn-primary {
-    @apply btn bg-jf-verde text-black hover:bg-jf-verde-oscuro 
-           shadow-lg shadow-jf-verde/25;
+    @apply btn bg-jf-verde text-black hover:shadow-glow hover:scale-[1.02];
   }
+
   .btn-secondary {
-    @apply btn bg-jf-tarjeta text-jf-texto border border-jf-borde 
-           hover:bg-jf-hover;
+    @apply btn glass text-jf-texto border border-white/10 hover:bg-white/10 hover:scale-[1.02];
   }
+
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700;
+    @apply btn bg-red-600 text-white hover:bg-red-700 hover:scale-[1.02];
   }
+
   .card {
-    @apply bg-jf-tarjeta rounded-xl border border-jf-borde overflow-hidden
-           transition-all duration-300 hover:border-jf-verde/30;
+    @apply relative bg-jf-tarjeta rounded-2xl border border-jf-borde overflow-hidden
+           transition-all duration-500;
   }
+
+  .card::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-500;
+    background: linear-gradient(135deg, rgba(0,230,118,0.03) 0%, transparent 50%);
+  }
+
+  .card:hover {
+    @apply border-jf-verde/20 shadow-glow-lg;
+  }
+
+  .card:hover::before {
+    @apply opacity-100;
+  }
+
   .input {
-    @apply w-full px-4 py-2.5 bg-jf-fondo border border-jf-borde rounded-lg
-           text-jf-texto placeholder-jf-muted focus:outline-none focus:border-jf-verde
-           focus:ring-1 focus:ring-jf-verde/50 transition-colors;
+    @apply w-full px-4 py-3 bg-jf-fondo-alt border border-jf-borde-claro rounded-xl
+           text-jf-texto placeholder-jf-muted/50
+           focus:outline-none focus:border-jf-verde/50 focus:ring-2 focus:ring-jf-verde/10
+           transition-all duration-300;
   }
+
+  .input:focus {
+    @apply shadow-glow;
+  }
+
+  .chip {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+           backdrop-blur-xl border border-white/10;
+  }
+
   .skeleton {
-    @apply animate-pulse bg-jf-tarjeta rounded-lg;
+    @apply relative overflow-hidden bg-jf-tarjeta rounded-2xl;
+  }
+
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.03) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  .media-card {
+    @apply relative rounded-2xl overflow-hidden cursor-pointer
+           transition-all duration-500 ease-out;
+  }
+
+  .media-card .media-overlay {
+    @apply absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent
+           opacity-0 transition-all duration-500;
+  }
+
+  .media-card:hover .media-overlay {
+    @apply opacity-100;
+  }
+
+  .media-card:hover img {
+    @apply scale-110;
+  }
+
+  .media-card:hover {
+    @apply shadow-glow-lg -translate-y-2;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #2A2A2A transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-jf-borde-claro rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-jf-muted;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }

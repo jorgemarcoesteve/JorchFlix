@@ -19,7 +19,7 @@ async function obtenerTvdbId(tmdbId) {
   return data.tvdb_id;
 }
 
-async function enviarASerie(tmdbId, titulo) {
+async function enviarASerie(tmdbId, titulo, temporadasSeleccionadas = null) {
   const url = SettingsService.getWithFallback('sonarr_url', config.sonarr.url);
   const apiKey = SettingsService.getWithFallback('sonarr_api_key', config.sonarr.apiKey);
   const rootPath = SettingsService.getWithFallback('sonarr_root_path', config.sonarr.rootPath);
@@ -45,16 +45,24 @@ async function enviarASerie(tmdbId, titulo) {
 
   const seriesData = busqueda.data[0];
 
+  const todasSeasons = seriesData.seasons || [];
+  const seasonsAmonitorear = temporadasSeleccionadas && temporadasSeleccionadas.length > 0
+    ? todasSeasons.map(s => ({
+        seasonNumber: s.seasonNumber,
+        monitored: temporadasSeleccionadas.includes(s.seasonNumber),
+      }))
+    : todasSeasons.map(s => ({
+        seasonNumber: s.seasonNumber,
+        monitored: s.seasonNumber > 0,
+      }));
+
   const payload = {
     tvdbId,
     title: seriesData.title || titulo,
     qualityProfileId,
     rootFolderPath: rootPath,
     monitored: true,
-    seasons: (seriesData.seasons || []).map(s => ({
-      seasonNumber: s.seasonNumber,
-      monitored: true,
-    })),
+    seasons: seasonsAmonitorear,
     addOptions: {
       searchForMissingEpisodes: true,
     },

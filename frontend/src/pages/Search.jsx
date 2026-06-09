@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiSearch, FiFilm, FiMonitor } from 'react-icons/fi';
+import { FiSearch, FiFilm, FiMonitor, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import api from '../services/api';
 
 export default function Search() {
@@ -9,20 +9,18 @@ export default function Search() {
   const query = searchParams.get('q') || '';
   const [resultados, setResultados] = useState([]);
   const [cargando, setCargando] = useState(false);
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(0);
 
   useEffect(() => {
     if (!query) return;
+    setCargando(true);
     const buscar = async () => {
-      setCargando(true);
       try {
-        const [movies, series] = await Promise.all([
-          api.get('/media/search', { params: { q: query, tipo: 'movie' } }),
-          api.get('/media/search', { params: { q: query, tipo: 'tv' } }),
-        ]);
-        setResultados([
-          ...movies.data.map((m) => ({ ...m, _tipo: 'movie', _titulo: m.title })),
-          ...series.data.map((s) => ({ ...s, _tipo: 'tv', _titulo: s.name })),
-        ]);
+        const { data } = await api.get('/media/search', { params: { q: query, tipo: 'multi', page: pagina } });
+        const filtrados = (data.results || []).filter((r) => r.media_type === 'movie' || r.media_type === 'tv');
+        setResultados(filtrados);
+        setTotalPaginas(data.total_pages || 0);
       } catch {
         setResultados([]);
       } finally {
@@ -30,7 +28,9 @@ export default function Search() {
       }
     };
     buscar();
-  }, [query]);
+  }, [query, pagina]);
+
+  useEffect(() => { setPagina(1); }, [query]);
 
   return (
     <div className="max-w-7xl mx-auto px-4">
@@ -54,42 +54,67 @@ export default function Search() {
       )}
 
       {!cargando && resultados.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"
-        >
-          {resultados.map((item) => (
-            <Link key={`${item._tipo}-${item.id}`} to={`/media/${item._tipo}/${item.id}`}>
-              <motion.div
-                whileHover={{ y: -6, scale: 1.02 }}
-                className="card group cursor-pointer"
-              >
-                <div className="aspect-[2/3] bg-jf-hover overflow-hidden relative">
-                  {item.poster_path ? (
-                    <img
-                      src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
-                      alt={item._titulo}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-jf-muted">
-                      {item._tipo === 'movie' ? <FiFilm size={32} /> : <FiMonitor size={32} />}
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"
+          >
+            {resultados.map((item) => {
+              const tipo = item.media_type === 'tv' ? 'tv' : 'movie';
+              const titulo = item.title || item.name;
+              return (
+                <Link key={`${tipo}-${item.id}`} to={`/media/${tipo}/${item.id}`}>
+                  <motion.div whileHover={{ y: -6, scale: 1.02 }} className="card group cursor-pointer">
+                    <div className="aspect-[2/3] bg-jf-hover overflow-hidden relative">
+                      {item.poster_path ? (
+                        <img
+                          src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
+                          alt={titulo}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-jf-muted">
+                          {tipo === 'movie' ? <FiFilm size={32} /> : <FiMonitor size={32} />}
+                        </div>
+                      )}
+                      <span className="absolute top-2 right-2 px-2 py-0.5 bg-black/60 text-xs rounded-full text-white">
+                        {tipo === 'movie' ? 'Película' : 'Serie'}
+                      </span>
                     </div>
-                  )}
-                  <span className="absolute top-2 right-2 px-2 py-0.5 bg-black/60 text-xs rounded-full text-white">
-                    {item._tipo === 'movie' ? 'Película' : 'Serie'}
-                  </span>
-                </div>
-                <div className="p-2.5">
-                  <p className="text-sm font-medium truncate">{item._titulo}</p>
-                  <p className="text-xs text-jf-muted mt-1">★ {item.vote_average?.toFixed(1)}</p>
-                </div>
-              </motion.div>
-            </Link>
-          ))}
-        </motion.div>
+                    <div className="p-2.5">
+                      <p className="text-sm font-medium truncate">{titulo}</p>
+                      <p className="text-xs text-jf-muted mt-1">★ {item.vote_average?.toFixed(1)}</p>
+                    </div>
+                  </motion.div>
+                </Link>
+              );
+            })}
+          </motion.div>
+
+          {totalPaginas > 1 && (
+            <div className="flex items-center justify-center gap-3 mt-8 pb-8">
+              <button
+                onClick={() => setPagina(Math.max(1, pagina - 1))}
+                disabled={pagina <= 1}
+                className="btn-secondary !p-2.5"
+              >
+                <FiChevronLeft size={18} />
+              </button>
+              <span className="text-sm text-jf-muted">
+                Página {pagina} de {totalPaginas}
+              </span>
+              <button
+                onClick={() => setPagina(Math.min(totalPaginas, pagina + 1))}
+                disabled={pagina >= totalPaginas}
+                className="btn-secondary !p-2.5"
+              >
+                <FiChevronRight size={18} />
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

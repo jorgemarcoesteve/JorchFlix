@@ -70,6 +70,52 @@ function inicializarEsquema() {
     clave TEXT PRIMARY KEY,
     valor TEXT NOT NULL
   )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS notificaciones (
+    id TEXT PRIMARY KEY,
+    usuario_id TEXT NOT NULL,
+    tipo TEXT NOT NULL,
+    mensaje TEXT NOT NULL,
+    peticion_id TEXT,
+    leida INTEGER NOT NULL DEFAULT 0,
+    creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+    FOREIGN KEY (peticion_id) REFERENCES peticiones(id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    admin_id TEXT NOT NULL,
+    accion TEXT NOT NULL,
+    detalle TEXT,
+    usuario_afectado TEXT,
+    creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (admin_id) REFERENCES usuarios(id)
+  )`);
+
+  try {
+    db.run("ALTER TABLE peticiones ADD COLUMN temporadas TEXT");
+  } catch (e) {}
+
+  try {
+    db.run("ALTER TABLE peticiones ADD COLUMN jellyfin_id TEXT");
+  } catch (e) {}
+
+  try {
+    db.run("ALTER TABLE peticiones ADD COLUMN tvdb_id TEXT");
+  } catch (e) {}
+
+  try {
+    db.run("ALTER TABLE notificaciones ADD COLUMN leida INTEGER NOT NULL DEFAULT 0");
+  } catch (e) {}
+
+  try {
+    db.run("ALTER TABLE usuarios ADD COLUMN ultimo_login TEXT");
+  } catch (e) {}
+
+  try {
+    db.run("ALTER TABLE usuarios ADD COLUMN email TEXT");
+  } catch (e) {}
 }
 
 function guardar() {

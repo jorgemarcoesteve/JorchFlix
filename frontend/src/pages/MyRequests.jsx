@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiClock, FiCheck, FiX, FiLoader } from 'react-icons/fi';
+import toast from 'react-hot-toast';
+import { FiClock, FiCheck, FiX, FiLoader, FiTrash2 } from 'react-icons/fi';
 import api from '../services/api';
 
 const badgeEstado = {
@@ -14,12 +15,26 @@ export default function MyRequests() {
   const [peticiones, setPeticiones] = useState([]);
   const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
+  const cargar = () => {
+    setCargando(true);
     api.get('/peticiones/mis-peticiones')
       .then(({ data }) => setPeticiones(data))
-      .catch(() => {})
+      .catch(() => toast.error('Error al cargar peticiones'))
       .finally(() => setCargando(false));
-  }, []);
+  };
+
+  useEffect(() => { cargar(); }, []);
+
+  const cancelar = async (id) => {
+    if (!confirm('¿Cancelar esta petición? Recibirás 1 JFC de reembolso.')) return;
+    try {
+      await api.delete(`/peticiones/${id}`);
+      toast.success('Petición cancelada');
+      cargar();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al cancelar');
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4">
@@ -57,9 +72,7 @@ export default function MyRequests() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-jf-muted text-xs">
-                      ?
-                    </div>
+                    <div className="w-full h-full flex items-center justify-center text-jf-muted text-xs">?</div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -74,10 +87,14 @@ export default function MyRequests() {
                   <BadgeIcon size={14} />
                   {badge.text}
                 </span>
-                {p.nota_admin && (
-                  <p className="text-xs text-jf-muted hidden md:block max-w-xs truncate">
-                    "{p.nota_admin}"
-                  </p>
+                {p.estado === 'pending' && (
+                  <button
+                    onClick={() => cancelar(p.id)}
+                    className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    title="Cancelar petición"
+                  >
+                    <FiTrash2 size={16} />
+                  </button>
                 )}
               </motion.div>
             );

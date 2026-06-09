@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { FiUsers, FiTrash2, FiDollarSign, FiPlus } from 'react-icons/fi';
+import { FiUsers, FiTrash2, FiDollarSign, FiPlus, FiShield, FiShieldOff } from 'react-icons/fi';
 import api from '../../services/api';
 
 export default function AdminUsers() {
@@ -45,6 +45,18 @@ export default function AdminUsers() {
     }
   };
 
+  const cambiarRol = async (id, esAdmin) => {
+    const accion = esAdmin ? 'promover a admin' : 'degradar a usuario';
+    if (!confirm(`¿${esAdmin ? 'Promover' : 'Degradar'} este usuario?`)) return;
+    try {
+      await api.put(`/admin/usuarios/${id}/rol`, { es_admin: esAdmin });
+      toast.success(`Usuario ${accion} correctamente`);
+      cargar();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al cambiar rol');
+    }
+  };
+
   const otorgarJFC = async (e) => {
     e.preventDefault();
     try {
@@ -73,22 +85,12 @@ export default function AdminUsers() {
           onSubmit={crearUsuario}
           className="card p-4 mb-6 flex flex-col sm:flex-row gap-3"
         >
-          <input
-            type="text"
-            placeholder="Nombre de usuario"
-            value={nuevoUsuario.nombre_usuario}
+          <input type="text" placeholder="Nombre de usuario" value={nuevoUsuario.nombre_usuario}
             onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, nombre_usuario: e.target.value })}
-            className="input flex-1"
-            required
-          />
-          <input
-            type="password"
-            placeholder="Contraseña"
-            value={nuevoUsuario.contrasena}
+            className="input flex-1" required />
+          <input type="password" placeholder="Contraseña" value={nuevoUsuario.contrasena}
             onChange={(e) => setNuevoUsuario({ ...nuevoUsuario, contrasena: e.target.value })}
-            className="input flex-1"
-            required
-          />
+            className="input flex-1" required />
           <button type="submit" className="btn-primary">Crear en Jellyfin + JorchFlix</button>
         </motion.form>
       )}
@@ -117,18 +119,14 @@ export default function AdminUsers() {
                   <td className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-jf-verde/20 flex items-center justify-center">
-                        <span className="text-jf-verde font-semibold text-sm">
-                          {u.nombre_usuario.charAt(0).toUpperCase()}
-                        </span>
+                        <span className="text-jf-verde font-semibold text-sm">{u.nombre_usuario.charAt(0).toUpperCase()}</span>
                       </div>
                       <span className="text-white font-medium">{u.nombre_usuario}</span>
                     </div>
                   </td>
                   <td className="p-4">
                     {u.es_admin ? (
-                      <span className="px-2.5 py-1 bg-jf-verde/10 text-jf-verde text-xs rounded-full font-medium">
-                        Admin
-                      </span>
+                      <span className="px-2.5 py-1 bg-jf-verde/10 text-jf-verde text-xs rounded-full font-medium">Admin</span>
                     ) : (
                       <span className="text-jf-muted text-sm">Usuario</span>
                     )}
@@ -140,7 +138,14 @@ export default function AdminUsers() {
                     {new Date(u.creado_en).toLocaleDateString('es-ES')}
                   </td>
                   <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => cambiarRol(u.id, !u.es_admin)}
+                        className="p-2 text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition-colors"
+                        title={u.es_admin ? 'Degradar a usuario' : 'Promover a admin'}
+                      >
+                        {u.es_admin ? <FiShieldOff size={16} /> : <FiShield size={16} />}
+                      </button>
                       <button
                         onClick={() => setGrant({ usuario_id: u.id, cantidad: 1, descripcion: '' })}
                         className="p-2 text-jf-verde hover:bg-jf-verde/10 rounded-lg transition-colors"
@@ -171,29 +176,22 @@ export default function AdminUsers() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           onSubmit={otorgarJFC}
-          className="card p-4 mt-4 flex items-center gap-3"
+          className="card p-4 mt-4 flex items-center gap-3 flex-wrap"
         >
           <FiDollarSign className="text-yellow-500 flex-shrink-0" size={20} />
           <span className="text-sm text-white whitespace-nowrap">
             Otorgar a {usuarios.find((u) => u.id === grant.usuario_id)?.nombre_usuario}:
           </span>
-          <input
-            type="number"
-            min="1"
-            value={grant.cantidad}
+          <input type="number" min="1" value={grant.cantidad}
             onChange={(e) => setGrant({ ...grant, cantidad: parseInt(e.target.value) || 1 })}
-            className="input w-20 text-center"
-          />
+            className="input w-20 text-center" />
           <span className="text-jf-muted text-sm">JFC</span>
-          <input
-            type="text"
-            placeholder="Motivo (opcional)"
-            value={grant.descripcion}
+          <input type="text" placeholder="Motivo (opcional)" value={grant.descripcion}
             onChange={(e) => setGrant({ ...grant, descripcion: e.target.value })}
-            className="input flex-1 text-sm"
-          />
+            className="input flex-1 text-sm" />
           <button type="submit" className="btn-primary !py-1.5 text-sm">Otorgar</button>
-          <button type="button" onClick={() => setGrant({ usuario_id: '', cantidad: 1, descripcion: '' })} className="btn-secondary !py-1.5 text-sm">Cancelar</button>
+          <button type="button" onClick={() => setGrant({ usuario_id: '', cantidad: 1, descripcion: '' })}
+            className="btn-secondary !py-1.5 text-sm">Cancelar</button>
         </motion.form>
       )}
     </div>

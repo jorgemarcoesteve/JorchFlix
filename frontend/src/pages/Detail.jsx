@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { FiClock, FiCalendar, FiStar, FiThumbsUp, FiPlay } from 'react-icons/fi';
+import { FiClock, FiCalendar, FiStar, FiThumbsUp, FiPlay, FiInfo, FiCheck } from 'react-icons/fi';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { MediaCard } from '../components/MediaCard';
 
 export default function Detail() {
   const { tipo, id } = useParams();
@@ -13,6 +14,10 @@ export default function Detail() {
   const [media, setMedia] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [solicitando, setSolicitando] = useState(false);
+  const [estadoPeticion, setEstadoPeticion] = useState(null);
+  const [enJellyfin, setEnJellyfin] = useState(false);
+  const [temporadasSeleccionadas, setTemporadasSeleccionadas] = useState([]);
+  const [mostrarSelectorTemp, setMostrarSelectorTemp] = useState(false);
 
   useEffect(() => {
     const cargar = async () => {
@@ -30,203 +35,309 @@ export default function Detail() {
     cargar();
   }, [tipo, id, navigate]);
 
-  const solicitar = async () => {
+  useEffect(() => {
+    if (!media) return;
+    api.get('/peticiones/mis-peticiones').then(({ data }) => {
+      const encontrada = data.find(
+        (p) => p.tmdb_id === String(id) && p.tipo === (tipo === 'tv' ? 'series' : 'movie') && p.estado !== 'rejected'
+      );
+      if (encontrada) setEstadoPeticion(encontrada.estado);
+    }).catch(() => {});
+
+    api.get('/media/en-jellyfin', { params: { tmdb_id: id, tipo } }).then(({ data }) => {
+      if (data.existe) setEnJellyfin(true);
+    }).catch(() => {});
+  }, [media, tipo, id]);
+
+  const solicitar = async (temporadas) => {
     setSolicitando(true);
     try {
       const tipoPeticion = tipo === 'movie' ? 'movie' : 'series';
-      await api.post('/peticiones', {
+      const payload = {
         tipo: tipoPeticion,
         tmdb_id: String(id),
         titulo: media.title || media.name,
         descripcion: media.overview,
         poster_path: media.poster_path,
-      });
+      };
+      if (temporadas) payload.temporadas = temporadas;
+
+      await api.post('/peticiones', payload);
       toast.success('¡Petición enviada! Espera la aprobación del admin.');
+      setEstadoPeticion('pending');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error al solicitar');
+      if (err.response?.status === 409) {
+        toast.error('Ya solicitaste este contenido');
+        setEstadoPeticion('pending');
+      } else {
+        toast.error(err.response?.data?.error || 'Error al solicitar');
+      }
     } finally {
       setSolicitando(false);
     }
   };
 
+  const badgesEstado = {
+    pending: { text: 'Pendiente', class: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+    approved: { text: 'Procesando...', class: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+    completed: { text: 'Disponible en Jellyfin', class: 'bg-jf-verde/20 text-jf-verde border-jf-verde/30' },
+  };
+
   if (cargando) {
     return (
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="skeleton h-96 rounded-xl mb-6" />
-        <div className="skeleton h-8 w-2/3 mb-3" />
-        <div className="skeleton h-4 w-1/3 mb-6" />
-        <div className="skeleton h-24 w-full" />
+      <div>
+        <div className="h-[60vh] skeleton rounded-none" />
+        <div className="max-w-5xl mx-auto px-4 -mt-32 relative">
+          <div className="flex gap-8">
+            <div className="skeleton w-72 aspect-[2/3] rounded-2xl flex-shrink-0" />
+            <div className="flex-1 space-y-4 pt-16">
+              <div className="skeleton h-10 w-2/3" />
+              <div className="skeleton h-5 w-1/3" />
+              <div className="skeleton h-24 w-full" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!media) return null;
 
-  const backdrop = media.backdrop_path
-    ? `https://image.tmdb.org/t/p/original${media.backdrop_path}`
-    : null;
-
-  const poster = media.poster_path
-    ? `https://image.tmdb.org/t/p/w342${media.poster_path}`
-    : null;
-
+  const backdrop = media.backdrop_path ? `https://image.tmdb.org/t/p/original${media.backdrop_path}` : null;
+  const poster = media.poster_path ? `https://image.tmdb.org/t/p/w342${media.poster_path}` : null;
   const titulo = media.title || media.name;
   const fecha = media.release_date || media.first_air_date;
   const year = fecha?.slice(0, 4);
   const generos = media.genres?.map((g) => g.name) || [];
   const duracion = media.runtime || media.episode_run_time?.[0];
-
-  const trailer = media.videos?.results?.find(
-    (v) => v.type === 'Trailer' && v.site === 'YouTube'
-  );
-  const reparto = media.credits?.cast?.slice(0, 8) || [];
+  const trailer = media.videos?.results?.find((v) => v.type === 'Trailer' && v.site === 'YouTube');
+  const reparto = media.credits?.cast?.slice(0, 10) || [];
   const similares = media.similar?.results?.slice(0, 6) || [];
+  const temporadas = media.seasons?.filter((s) => s.season_number > 0) || [];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pb-16">
       {backdrop && (
-        <div className="absolute top-0 left-0 right-0 h-[70vh] -z-10">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-jf-fondo/70 to-jf-fondo z-10" />
-          <img
-            src={backdrop}
-            alt=""
-            className="w-full h-full object-cover"
-          />
+        <div className="relative h-[60vh] -mt-20">
+          <div className="absolute inset-0">
+            <img src={backdrop} alt="" className="w-full h-full object-cover" />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-jf-fondo via-jf-fondo/60 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-jf-fondo/40 via-transparent to-transparent" />
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-4 pt-8">
+      <div className="max-w-6xl mx-auto px-4 -mt-48 relative z-10">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col md:flex-row gap-8"
+          className="flex flex-col md:flex-row gap-8 items-start"
         >
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 w-full md:w-72">
             {poster ? (
-              <img
-                src={poster}
-                alt={titulo}
-                className="w-64 rounded-xl shadow-2xl"
-              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+                className="rounded-2xl overflow-hidden shadow-2xl shadow-black/50"
+              >
+                <img src={poster} alt={titulo} className="w-full object-cover" />
+              </motion.div>
             ) : (
-              <div className="w-64 aspect-[2/3] bg-jf-tarjeta rounded-xl flex items-center justify-center text-jf-muted">
-                Sin imagen
+              <div className="aspect-[2/3] bg-jf-tarjeta rounded-2xl flex items-center justify-center">
+                <FiInfo className="text-jf-muted/30" size={48} />
               </div>
             )}
           </div>
 
-          <div className="flex-1">
-            <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-4xl font-extrabold text-white mb-2">{titulo}</h1>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-jf-muted mb-4">
-                  {year && <span>{year}</span>}
-                  {duracion && (
-                    <span className="flex items-center gap-1">
-                      <FiClock size={14} /> {duracion} min
-                    </span>
-                  )}
-                  <span className="flex items-center gap-1">
-                    <FiStar className="text-yellow-500" /> {media.vote_average?.toFixed(1)}
+          <div className="flex-1 pt-4 md:pt-20">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
+                  {titulo}
+                </h1>
+                {enJellyfin && (
+                  <span className="chip text-xs bg-jf-verde/20 text-jf-verde border-jf-verde/30">
+                    <FiCheck size={12} className="mr-1" />
+                    En Jellyfin
                   </span>
-                </div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {generos.map((g) => (
-                    <span key={g} className="px-3 py-1 bg-jf-verde/10 text-jf-verde text-xs rounded-full font-medium">
-                      {g}
-                    </span>
-                  ))}
-                </div>
+                )}
+                {estadoPeticion && !enJellyfin && (
+                  <span className={`chip text-xs ${badgesEstado[estadoPeticion]?.class || ''}`}>
+                    <FiCheck size={12} className="mr-1" />
+                    {badgesEstado[estadoPeticion]?.text}
+                  </span>
+                )}
               </div>
-            </div>
 
-            <p className="text-jf-texto leading-relaxed mb-6">
-              {media.overview || 'Sin descripción disponible'}
-            </p>
+              <div className="flex flex-wrap items-center gap-3 mt-4 text-sm">
+                {year && (
+                  <span className="chip bg-white/10 text-white border-white/10 gap-1.5">
+                    <FiCalendar size={12} />
+                    {year}
+                  </span>
+                )}
+                {duracion && (
+                  <span className="chip bg-white/10 text-white border-white/10 gap-1.5">
+                    <FiClock size={12} />
+                    {duracion} min
+                  </span>
+                )}
+                {media.vote_average > 0 && (
+                  <span className="chip bg-yellow-500/20 text-yellow-400 border-yellow-500/20 gap-1.5">
+                    <FiStar size={12} />
+                    {media.vote_average.toFixed(1)}
+                  </span>
+                )}
+                <span className="chip bg-jf-verde/10 text-jf-verde border-jf-verde/20 uppercase text-[10px] tracking-wider font-bold">
+                  {tipo === 'movie' ? 'Película' : 'Serie'}
+                </span>
+              </div>
 
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={solicitar}
-                disabled={solicitando}
-                className="btn-primary flex items-center gap-2"
-              >
-                <FiThumbsUp size={18} />
-                {solicitando ? 'Solicitando...' : `Solicitar (${usuario?.monedas} JFC)`}
-              </button>
+              <div className="flex flex-wrap gap-2 mt-4">
+                {generos.map((g) => (
+                  <span key={g} className="px-3 py-1.5 bg-jf-verde/10 text-jf-verde text-xs rounded-xl font-medium border border-jf-verde/20 hover:bg-jf-verde/20 transition-colors cursor-default">
+                    {g}
+                  </span>
+                ))}
+              </div>
 
-              {trailer && (
-                <a
-                  href={`https://youtube.com/watch?v=${trailer.key}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary flex items-center gap-2"
-                >
-                  <FiPlay size={18} /> Ver tráiler
-                </a>
+              {media.tagline && (
+                <p className="text-jf-muted italic text-lg mt-4 border-l-2 border-jf-verde/30 pl-4">{media.tagline}</p>
               )}
-            </div>
+
+              <p className="text-jf-texto leading-relaxed mt-5 text-base max-w-2xl">
+                {media.overview || 'Sin descripción disponible.'}
+              </p>
+
+              {temporadas.length > 0 && mostrarSelectorTemp && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-4 p-4 bg-jf-fondo-alt rounded-2xl border border-jf-borde-claro"
+                >
+                  <p className="text-sm font-medium text-white mb-3">Selecciona temporadas:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {temporadas.map((s) => (
+                      <button
+                        key={s.season_number}
+                        onClick={() => {
+                          setTemporadasSeleccionadas((prev) =>
+                            prev.includes(s.season_number)
+                              ? prev.filter((n) => n !== s.season_number)
+                              : [...prev, s.season_number]
+                          );
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                          temporadasSeleccionadas.includes(s.season_number)
+                            ? 'bg-jf-verde text-black border-jf-verde'
+                            : 'bg-jf-tarjeta text-jf-texto border-jf-borde hover:border-jf-verde/50'
+                        }`}
+                      >
+                        T{s.season_number} {s.name !== `Season ${s.season_number}` && s.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => setTemporadasSeleccionadas(temporadas.map((s) => s.season_number))}
+                      className="text-xs text-jf-verde hover:underline"
+                    >
+                      Seleccionar todas
+                    </button>
+                    <button
+                      onClick={() => setTemporadasSeleccionadas([])}
+                      className="text-xs text-jf-muted hover:underline"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              <div className="flex flex-wrap gap-3 mt-8">
+                {!estadoPeticion && (
+                  <button
+                    onClick={() => {
+                      if (temporadas.length > 0 && !mostrarSelectorTemp) {
+                        setMostrarSelectorTemp(true);
+                      } else {
+                        solicitar(temporadasSeleccionadas.length > 0 ? temporadasSeleccionadas : undefined);
+                      }
+                    }}
+                    disabled={solicitando}
+                    className="btn-primary gap-2 text-base px-8 py-3.5"
+                  >
+                    <FiThumbsUp size={20} />
+                    {solicitando
+                      ? 'Solicitando...'
+                      : mostrarSelectorTemp
+                        ? `Confirmar (${usuario?.monedas || 0} JFC)`
+                        : `Solicitar (${usuario?.monedas || 0} JFC)`}
+                  </button>
+                )}
+
+                {trailer && (
+                  <a href={`https://youtube.com/watch?v=${trailer.key}`} target="_blank" rel="noopener noreferrer"
+                    className="btn-secondary gap-2 text-base px-8 py-3.5">
+                    <FiPlay size={20} />
+                    Ver tráiler
+                  </a>
+                )}
+              </div>
+            </motion.div>
 
             {reparto.length > 0 && (
-              <div className="mt-8">
-                <h3 className="text-lg font-bold text-white mb-3">Reparto principal</h3>
-                <div className="flex gap-4 overflow-x-auto pb-2">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="mt-12"
+              >
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="w-1 h-5 bg-jf-verde rounded-full" />
+                  Reparto principal
+                </h3>
+                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
                   {reparto.map((actor) => (
-                    <div key={actor.id} className="flex-shrink-0 text-center w-20">
-                      <div className="w-16 h-16 rounded-full bg-jf-hover mx-auto mb-1 overflow-hidden">
+                    <div key={actor.id} className="flex-shrink-0 text-center w-20 group">
+                      <div className="w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden ring-2 ring-white/10 group-hover:ring-jf-verde/40 transition-all duration-300">
                         {actor.profile_path ? (
-                          <img
-                            src={`https://image.tmdb.org/t/p/w185${actor.profile_path}`}
-                            alt={actor.name}
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={`https://image.tmdb.org/t/p/w185${actor.profile_path}`} alt={actor.name}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-jf-muted text-xs">
-                            ?
-                          </div>
+                          <div className="w-full h-full bg-jf-hover flex items-center justify-center text-jf-muted text-xs">?</div>
                         )}
                       </div>
-                      <p className="text-xs text-jf-texto truncate">{actor.name}</p>
+                      <p className="text-xs text-jf-texto font-medium truncate">{actor.name}</p>
+                      <p className="text-[10px] text-jf-muted/60 truncate">{actor.character}</p>
                     </div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
             )}
           </div>
         </motion.div>
 
         {similares.length > 0 && (
-          <div className="mt-12 mb-8">
-            <h3 className="text-lg font-bold text-white mb-4">Contenido similar</h3>
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {similares.map((item) => {
-                const img = item.poster_path
-                  ? `https://image.tmdb.org/t/p/w185${item.poster_path}`
-                  : null;
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => navigate(`/media/${tipo}/${item.id}`)}
-                    className="flex-shrink-0 w-28 cursor-pointer group"
-                  >
-                    <div className="aspect-[2/3] bg-jf-hover rounded-lg overflow-hidden mb-1">
-                      {img ? (
-                        <img
-                          src={img}
-                          alt={item.title || item.name}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-jf-muted text-xs">
-                          Sin img
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-xs text-jf-texto truncate">{item.title || item.name}</p>
-                  </div>
-                );
-              })}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-16"
+          >
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <span className="w-1 h-5 bg-jf-verde rounded-full" />
+              Contenido similar
+            </h3>
+            <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
+              {similares.map((item, i) => (
+                <div key={item.id} className="flex-shrink-0" onClick={() => navigate(`/media/${tipo}/${item.id}`)}>
+                  <MediaCard item={item} tipo={tipo} index={i} />
+                </div>
+              ))}
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>
