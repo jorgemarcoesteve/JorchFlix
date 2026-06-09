@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiPlay, FiPause, FiMaximize, FiVolume2, FiVolumeX } from 'react-icons/fi';
 import api from '../services/api';
@@ -15,12 +15,55 @@ export default function Player() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [reanudando, setReanudando] = useState(false);
+  const playSessionIdRef = useRef(null);
+  const ultimoReporteRef = useRef(0);
 
   useEffect(() => {
     api.get(`/media/player-info/${id}`)
       .then(({ data }) => { setInfo(data); setCargando(false); })
       .catch(() => { setCargando(false); });
   }, [id]);
+
+  const reportarProgreso = useCallback(async (forzar) => {
+    if (!videoRef.current || !id) return;
+    const ahora = Date.now();
+    if (!forzar && ahora - ultimoReporteRef.current < 15000) return;
+    ultimoReporteRef.current = ahora;
+    const posTicks = Math.floor(videoRef.current.currentTime * 10000000);
+    try {
+      const { data } = await api.post(`/media/reportar-progreso/${id}`, {
+        positionTicks: posTicks,
+        isPaused: videoRef.current.paused,
+        playSessionId: playSessionIdRef.current || undefined,
+      });
+      if (!playSessionIdRef.current && data.playSessionId) {
+        playSessionIdRef.current = data.playSessionId;
+      }
+    } catch {}
+  }, [id]);
+
+  const marcarVisto = useCallback(async () => {
+    if (!id) return;
+    try {
+      await api.post(`/media/marcar-visto/${id}`);
+    } catch {}
+  }, [id]);
+
+  useEffect(() => {
+    if (!info) return;
+    const interval = setInterval(() => reportarProgreso(false), 15000);
+
+    const onBefore = () => { reportarProgreso(true); };
+    window.addEventListener('beforeunload', onBefore);
+    window.addEventListener('popstate', onBefore);
+
+    return () => {
+      clearInterval(interval);
+      reportarProgreso(true);
+      window.removeEventListener('beforeunload', onBefore);
+      window.removeEventListener('popstate', onBefore);
+    };
+  }, [info, reportarProgreso]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -44,6 +87,7 @@ export default function Player() {
     const t = parseFloat(e.target.value);
     if (videoRef.current) videoRef.current.currentTime = t;
     setCurrentTime(t);
+    reportarProgreso(true);
   };
 
   const toggleMute = () => {
@@ -126,9 +170,9 @@ export default function Player() {
               setTimeout(() => setReanudando(false), 3000);
             }
           }}
-          onEnded={() => setPlaying(false)}
+          onEnded={() => { setPlaying(false); marcarVisto(); reportarProgreso(true); }}
           onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
+          onPause={() => { setPlaying(false); reportarProgreso(true); }}
           controls={false}
           playsInline
         />

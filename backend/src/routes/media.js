@@ -319,6 +319,69 @@ router.get('/reproducir-directo/:itemId', autenticar, async (req, res) => {
   }
 });
 
+router.post('/reportar-progreso/:itemId', autenticar, async (req, res) => {
+  try {
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+    if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
+
+    const { positionTicks, isPaused } = req.body;
+    if (positionTicks == null) return res.status(400).json({ error: 'positionTicks requerido' });
+
+    await axios.post(
+      `${baseUrl}/Users/${req.usuario.jellyfin_id}/Items/${req.params.itemId}/PlaybackProgress`,
+      {
+        PlaySessionId: req.body.playSessionId,
+        PositionTicks: positionTicks,
+        IsPaused: isPaused || false,
+        IsMuted: false,
+        VolumeLevel: 100,
+        PlayMethod: 'DirectStream',
+        PlaybackRate: 1,
+      },
+      {
+        headers: {
+          'X-MediaBrowser-Token': apiKey,
+          'Content-Type': 'application/json',
+        },
+        timeout: 5000,
+      }
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error al reportar progreso:', err.message);
+    res.status(500).json({ error: 'Error al reportar progreso' });
+  }
+});
+
+router.post('/marcar-visto/:itemId', autenticar, async (req, res) => {
+  try {
+    const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
+    const apiKey = SettingsService.getWithFallback('jellyfin_api_key', config.jellyfin.apiKey);
+    if (!baseUrl || !apiKey) return res.status(400).json({ error: 'Jellyfin no configurado' });
+    if (!req.usuario?.jellyfin_id) return res.status(400).json({ error: 'Usuario no vinculado a Jellyfin' });
+
+    await axios.post(
+      `${baseUrl}/Users/${req.usuario.jellyfin_id}/PlayedItems/${req.params.itemId}`,
+      { DatePlayed: new Date().toISOString().split('T')[0] },
+      {
+        headers: {
+          'X-MediaBrowser-Token': apiKey,
+          'Content-Type': 'application/json',
+        },
+        timeout: 5000,
+      }
+    );
+
+    res.json({ ok: true, marcado: true });
+  } catch (err) {
+    console.error('Error al marcar como visto:', err.message);
+    res.status(500).json({ error: 'Error al marcar como visto' });
+  }
+});
+
 router.get('/imagen/:itemId', async (req, res) => {
   try {
     const baseUrl = SettingsService.getWithFallback('jellyfin_url', config.jellyfin.url)?.replace(/\/+$/, '');
