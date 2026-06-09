@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const config = require('../config');
@@ -15,8 +16,10 @@ router.post('/login', async (req, res) => {
   }
 
   try {
+    const sha1Hash = crypto.createHash('sha1').update(contrasena).digest('hex');
     const respuesta = await axios.post(`${config.jellyfin.url}/Users/AuthenticateByName`, {
       Username: usuario,
+      Pw: sha1Hash,
       Password: contrasena,
     }, {
       headers: {

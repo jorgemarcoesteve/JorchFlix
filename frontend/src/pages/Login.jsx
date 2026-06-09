@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 export default function Login() {
   const [usuario, setUsuario] = useState('');
   const [contrasena, setContrasena] = useState('');
+  const [mostrarPass, setMostrarPass] = useState(false);
   const [cargando, setCargando] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -74,13 +76,22 @@ export default function Login() {
             </div>
             <div>
               <label className="block text-sm font-medium text-jf-muted mb-1.5">Contraseña</label>
-              <input
-                type="password"
-                value={contrasena}
-                onChange={(e) => setContrasena(e.target.value)}
-                className="input"
-                placeholder="Tu contraseña"
-              />
+              <div className="relative">
+                <input
+                  type={mostrarPass ? 'text' : 'password'}
+                  value={contrasena}
+                  onChange={(e) => setContrasena(e.target.value)}
+                  className="input pr-10"
+                  placeholder="Tu contraseña"
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarPass(!mostrarPass)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-jf-muted hover:text-jf-texto"
+                >
+                  {mostrarPass ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                </button>
+              </div>
             </div>
             <button
               type="submit"
