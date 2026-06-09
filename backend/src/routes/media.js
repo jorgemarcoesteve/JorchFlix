@@ -348,21 +348,20 @@ router.get('/stream/:itemId', verificarTokenDesdeQuery, async (req, res) => {
     jfUrl.searchParams.set('api_key', apiKey);
     jfUrl.searchParams.set('UserId', userId);
     jfUrl.searchParams.set('Static', 'false');
-    jfUrl.searchParams.set('VideoCodec', 'h264');
-    jfUrl.searchParams.set('AudioCodec', 'aac');
-    jfUrl.searchParams.set('AllowVideoStreamCopy', 'false');
-    jfUrl.searchParams.set('AllowAudioStreamCopy', 'false');
-    jfUrl.searchParams.set('RequireAvc', 'true');
     jfUrl.searchParams.set('DeviceId', 'JorchFlix');
     if (req.query.AudioStreamIndex) jfUrl.searchParams.set('AudioStreamIndex', req.query.AudioStreamIndex);
 
     const transport = jfUrl.protocol === 'https:' ? https : http;
+    const forwardHeaders = ['range', 'accept'];
     const opts = {
       hostname: jfUrl.hostname,
       port: jfUrl.port || (jfUrl.protocol === 'https:' ? 443 : 80),
       path: jfUrl.pathname + jfUrl.search,
       method: 'GET',
-      headers: { 'X-MediaBrowser-Token': apiKey },
+      headers: {
+        'X-MediaBrowser-Token': apiKey,
+        ...Object.fromEntries(forwardHeaders.filter(h => req.headers[h]).map(h => [h, req.headers[h]])),
+      },
     };
 
     const proxyReq = transport.request(opts, (proxyRes) => {
